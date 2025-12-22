@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input"
 import { Send, Loader2 } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import Cookies from "js-cookie"
 
 type Message = {
     id: string
@@ -39,6 +40,12 @@ export default function ChatPage() {
         e.preventDefault()
         if (!input.trim() || isLoading) return
 
+        const studentId = Cookies.get("student_id")
+        if (!studentId) {
+            alert("Please login first")
+            return
+        }
+
         const newMessage: Message = {
             id: Date.now().toString(),
             role: "user",
@@ -50,17 +57,35 @@ export default function ChatPage() {
         setInput("")
         setIsLoading(true)
 
-        // Simulate API response
-        setTimeout(() => {
+        try {
+            const res = await fetch("http://localhost:8000/chat/message", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ student_id: studentId, message: newMessage.content }),
+            })
+
+            if (!res.ok) throw new Error("Processing failed")
+
+            const data = await res.json()
+
             const responseMessage: Message = {
                 id: (Date.now() + 1).toString(),
                 role: "assistant",
-                content: "This is a simulated response from the AI. In a real application, this would be connected to the backend API.",
+                content: data.response || "Sorry, I understand.",
                 timestamp: new Date(),
             }
             setMessages((prev) => [...prev, responseMessage])
+        } catch (error) {
+            const errorMessage: Message = {
+                id: (Date.now() + 1).toString(),
+                role: "assistant",
+                content: "Sorry, something went wrong. Please try again.",
+                timestamp: new Date(),
+            }
+            setMessages((prev) => [...prev, errorMessage])
+        } finally {
             setIsLoading(false)
-        }, 1500)
+        }
     }
 
     return (
