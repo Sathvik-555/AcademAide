@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #fdfbf7;
+  /* Warm off-white */
+  --foreground: #1e1b4b;
+  /* Deep Indigo */
+
+  --primary: #6366f1;
+  /* Indigo 500 */
+  --primary-foreground: #ffffff;
+
+  --secondary: #ffffff;
+  --secondary-foreground: #1e1b4b;
+
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+
+  --accent: #eef2ff;
+  /* Indigo 50 */
+  --accent-foreground: #3730a3;
+
+  --destructive: #f43f5e;
+  /* Rose 500 */
+  --destructive-foreground: #ffffff;
+
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #6366f1;
+
+  --card: #ffffff;
+  --card-foreground: #1e1b4b;
+
+  --popover: #ffffff;
+  --popover-foreground: #1e1b4b;
+
+  --radius: 1rem;
+  /* Very rounded and friendly */
+
+  /* Vibrant Accents */
+  --chart-1: #8b5cf6;
+  /* Violet */
+  --chart-2: #10b981;
+  /* Emerald */
+  --chart-3: #f59e0b;
+  /* Amber */
+  --chart-4: #f43f5e;
+  /* Rose */
+  --chart-5: #0ea5e9;
+  /* Sky */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /* Custom vibrant colors */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0f172a;
+    /* Slate 900 */
+    --foreground: #f8fafc;
+
+    --primary: #818cf8;
+    /* Indigo 400 */
+    --primary-foreground: #1e1b4b;
+
+    --secondary: #1e293b;
+    --secondary-foreground: #f8fafc;
+
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+
+    --accent: #1e293b;
+    --accent-foreground: #f8fafc;
+
+    --destructive: #fb7185;
+    /* Rose 400 */
+    --destructive-foreground: #f8fafc;
+
+    --border: #1e293b;
+    --input: #1e293b;
+    --ring: #818cf8;
+
+    --card: #1e293b;
+    --card-foreground: #f8fafc;
+
+    --popover: #1e293b;
+    --popover-foreground: #f8fafc;
+
+    /* Vibrant Accents Dark Mode */
+    --chart-1: #a78bfa;
+    /* Violet 400 */
+    --chart-2: #34d399;
+    /* Emerald 400 */
+    --chart-3: #fbbf24;
+    /* Amber 400 */
+    --chart-4: #fb7185;
+    /* Rose 400 */
+    --chart-5: #38bdf8;
+    /* Sky 400 */
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  @apply selection:bg-primary/30 selection:text-primary;
+}
+
+/* Glassmorphism & Gradient Utilities */
+.glass {
+  @apply bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-lg;
+}
+
+.glass-card {
+  @apply bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border border-black/5 dark:border-white/10;
+}
+
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-400;
+}
