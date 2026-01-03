@@ -136,6 +136,28 @@ CREATE TABLE SCHEDULE (
     CONSTRAINT fk_schedule_section FOREIGN KEY (section_name) REFERENCES SECTION(section_name)
 );
 
+-- 11. STUDY_GROUP
+CREATE TABLE STUDY_GROUP (
+    group_id SERIAL PRIMARY KEY,
+    course_id VARCHAR(10) NOT NULL,
+    group_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_by VARCHAR(20) NOT NULL, -- Student who created it
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_group_course FOREIGN KEY (course_id) REFERENCES COURSE(course_id),
+    CONSTRAINT fk_group_creator FOREIGN KEY (created_by) REFERENCES STUDENT(student_id)
+);
+
+-- 12. GROUP_MEMBER
+CREATE TABLE GROUP_MEMBER (
+    group_id INTEGER,
+    student_id VARCHAR(20),
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_id, student_id),
+    CONSTRAINT fk_member_group FOREIGN KEY (group_id) REFERENCES STUDY_GROUP(group_id),
+    CONSTRAINT fk_member_student FOREIGN KEY (student_id) REFERENCES STUDENT(student_id)
+);
+
 -- ==========================================
 -- SEED DATA
 -- ==========================================

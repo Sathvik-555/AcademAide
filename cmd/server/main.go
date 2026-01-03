@@ -46,6 +46,18 @@ func main() {
 	r.GET("/auth/google/callback", handlers.GoogleCallback)
 	r.POST("/auth/complete-registration", handlers.CompleteRegistration)
 
+	// Feature: AI Quizzes
+	r.POST("/quiz/generate", middleware.AuthMiddleware(), handlers.GenerateQuiz)
+
+	// Feature: and Study Groups
+	groupRoutes := r.Group("/groups")
+	groupRoutes.Use(middleware.AuthMiddleware())
+	{
+		groupRoutes.GET("/peers", handlers.FindPeers)
+		groupRoutes.POST("/create", handlers.CreateGroup)
+		groupRoutes.GET("/list", handlers.ListGroups)
+	}
+
 	// Start Server
 	log.Println("Server executing on :8080")
 	if err := r.Run(":8080"); err != nil {

@@ -27,6 +27,22 @@ type ScheduleItem struct {
 	RoomNumber  string `json:"room_number"`
 }
 
+type StudyGroup struct {
+	GroupID     int       `json:"group_id"`
+	CourseID    string    `json:"course_id"`
+	GroupName   string    `json:"group_name"`
+	Description string    `json:"description"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	MemberCount int       `json:"member_count,omitempty"`
+}
+
+type GroupMember struct {
+	GroupID   int       `json:"group_id"`
+	StudentID string    `json:"student_id"`
+	JoinedAt  time.Time `json:"joined_at"`
+}
+
 // MongoDB Entities
 
 type ChatLog struct {
@@ -43,4 +59,19 @@ type ChatContext struct {
 	LastTopic       string    `bson:"last_topic" json:"last_topic"`
 	Emotion         string    `bson:"emotion" json:"emotion"`
 	LastInteraction time.Time `bson:"last_interaction" json:"last_interaction"`
+}
+
+type Quiz struct {
+	ID        string     `bson:"_id,omitempty" json:"id"`
+	CourseID  string     `bson:"course_id" json:"course_id"`
+	Topic     string     `bson:"topic" json:"topic"`
+	Questions []Question `bson:"questions" json:"questions"`
+	CreatedAt time.Time  `bson:"created_at" json:"created_at"`
+}
+
+type Question struct {
+	ID            int      `bson:"id" json:"id"`
+	Text          string   `bson:"text" json:"text"`
+	Options       []string `bson:"options" json:"options"`
+	CorrectOption int      `bson:"correct_option" json:"correct_option"` // Index 0-3
 }
