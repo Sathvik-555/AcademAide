@@ -6,8 +6,11 @@
 - MongoDB (Port 27017)
 - Redis (Port 6379)
 - Ollama (Running `llama3.2` on Port 11434)
+- Node.js (for Frontend)
 
 ## Installation & Running
+
+### Backend
 
 1.  **Initialize Module** (if not done):
     ```powershell
@@ -32,6 +35,28 @@
     go run cmd/server/main.go
     ```
     Server will start on `http://localhost:8080`.
+
+### Frontend
+
+The frontend is located in `frontend/AcademAide`.
+
+1.  **Navigate to Frontend**:
+    ```powershell
+    cd frontend/AcademAide
+    ```
+
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    # or
+    yarn install
+    ```
+
+3.  **Run Development Server**:
+    ```bash
+    npm run dev
+    ```
+    Open [http://localhost:3000](http://localhost:3000) with your browser.
 
 ## API Endpoints
 
