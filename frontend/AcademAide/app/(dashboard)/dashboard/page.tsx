@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { BookOpen, Trophy, Clock, AlertCircle, Loader2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import Cookies from "js-cookie"
+import { AIInsights } from "@/components/dashboard/AIInsights"
 
 export default function DashboardPage() {
     const [name, setName] = useState("Student")
@@ -51,6 +52,9 @@ export default function DashboardPage() {
                 </h1>
                 <p className="text-lg text-muted-foreground">Ready to conquer your academic goals today?</p>
             </div>
+
+            {/* AI Intelligence Section */}
+            <AIInsights />
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 {/* Colorful Stats Cards */}

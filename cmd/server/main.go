@@ -56,6 +56,16 @@ func main() {
 		groupRoutes.GET("/peers", handlers.FindPeers)
 		groupRoutes.POST("/create", handlers.CreateGroup)
 		groupRoutes.GET("/list", handlers.ListGroups)
+		groupRoutes.GET("/list", handlers.ListGroups)
+	}
+
+	// Feature: AI Academic Intelligence
+	aiHandler := handlers.NewAIHandler()
+	aiGroup := r.Group("/ai")
+	// aiGroup.Use(middleware.AuthMiddleware()) // Optional: Enable auth if needed
+	{
+		aiGroup.GET("/insights", aiHandler.GetInsights)
+		aiGroup.POST("/what-if", aiHandler.CalculateWhatIf)
 	}
 
 	// Start Server
