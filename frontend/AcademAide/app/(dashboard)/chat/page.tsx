@@ -2,9 +2,12 @@
 
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
-import { Send, Loader2 } from "lucide-react"
+import { Send, Loader2, Trash2 } from "lucide-react"
 import { useState, useRef, useEffect, Suspense } from "react"
 import { cn } from "@/lib/utils"
+import { AgentSelector, AgentType } from "@/components/AgentSelector"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import Cookies from "js-cookie"
 import { useSearchParams, useRouter } from "next/navigation"
 
@@ -26,6 +29,8 @@ function ChatContent() {
     ])
     const [input, setInput] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+
+    const [selectedAgent, setSelectedAgent] = useState<AgentType>("general")
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const searchParams = useSearchParams()
@@ -74,7 +79,11 @@ function ChatContent() {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`
                 },
-                body: JSON.stringify({ student_id: studentId, message: newMessage.content }),
+                body: JSON.stringify({
+                    student_id: studentId,
+                    message: newMessage.content,
+                    agent_id: selectedAgent
+                }),
             })
 
             if (!res.ok) throw new Error("Processing failed")
@@ -101,6 +110,37 @@ function ChatContent() {
         }
     }
 
+    const clearChat = async () => {
+        if (!confirm("Are you sure you want to clear the chat history? This cannot be undone.")) return
+
+        const studentId = Cookies.get("student_id")
+        const token = Cookies.get("token")
+        if (!studentId || !token) return
+
+        try {
+            const res = await fetch(`http://localhost:8080/chat/history?student_id=${studentId}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${token}`
+                }
+            })
+
+            if (res.ok) {
+                // Reset to initial state
+                setMessages([{
+                    id: "1",
+                    role: "assistant",
+                    content: "Chat history cleared. How can I help you freshly?",
+                    timestamp: new Date(),
+                }])
+            } else {
+                alert("Failed to clear chat")
+            }
+        } catch (e) {
+            alert("Error clearing chat")
+        }
+    }
+
     // Handle search query param
     useEffect(() => {
         if (query && !queryProcessed.current) {
@@ -119,6 +159,18 @@ function ChatContent() {
 
     return (
         <div className="flex flex-col h-[calc(100vh-8rem)]">
+            <div className="flex justify-between items-center mb-2 px-1">
+                <AgentSelector selectedAgent={selectedAgent} onSelect={setSelectedAgent} />
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={clearChat}
+                    title="Clear Chat History"
+                    className="text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                >
+                    <Trash2 className="h-4 w-4" />
+                </Button>
+            </div>
             <div className="flex-1 overflow-y-auto mb-4 space-y-4 p-4 rounded-lg border bg-card/50">
                 {messages.map((message) => (
                     <div
@@ -130,7 +182,22 @@ function ChatContent() {
                                 : "bg-white text-gray-800 dark:bg-slate-800 dark:text-gray-100 rounded-bl-sm border border-gray-100 dark:border-white/10"
                         )}
                     >
-                        {message.content}
+                        <div className={cn(
+                            "prose text-sm max-w-none break-words",
+                            message.role === "user"
+                                ? "prose-invert"
+                                : "dark:prose-invert"
+                        )}>
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                    pre: ({ node, ...props }) => <div className="overflow-auto w-full my-2 bg-black/10 dark:bg-black/30 p-2 rounded-lg" {...props} />,
+                                    code: ({ node, ...props }) => <code className="bg-black/10 dark:bg-black/30 rounded px-1" {...props} />
+                                }}
+                            >
+                                {message.content}
+                            </ReactMarkdown>
+                        </div>
                     </div>
                 ))}
                 {isLoading && (

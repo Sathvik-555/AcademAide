@@ -39,6 +39,7 @@ func main() {
 	chatGroup.Use(middleware.AuthMiddleware())
 	{
 		chatGroup.POST("/message", handlers.ChatHandler)
+		chatGroup.DELETE("/history", handlers.ClearChatHandler)
 	}
 
 	// OAuth Routes
@@ -56,7 +57,7 @@ func main() {
 		groupRoutes.GET("/peers", handlers.FindPeers)
 		groupRoutes.POST("/create", handlers.CreateGroup)
 		groupRoutes.GET("/list", handlers.ListGroups)
-		groupRoutes.GET("/list", handlers.ListGroups)
+
 	}
 
 	// Feature: AI Academic Intelligence

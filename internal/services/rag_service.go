@@ -44,7 +44,24 @@ func (s *RAGService) AnalyzeSentiment(message string) string {
 	return "neutral"
 }
 
-func (s *RAGService) ProcessChat(studentID, message string) (string, error) {
+func (s *RAGService) getAgentPrompt(agentID string) string {
+	switch agentID {
+	case "socratic":
+		return "You are a Socratic Tutor. Your goal is to guide the student to the answer by asking probing questions. Do not give the answer directly. Break down complex problems into smaller steps."
+	case "code_reviewer":
+		return "You are an expert Code Reviewer. Analyze the student's code for bugs, efficiency, and style. Provide constructive feedback and explain *why* something is an issue. Do not just fix it."
+	case "research":
+		return "You are a Research Assistant. Focus on providing academic context, summarizing key concepts, and suggesting related topics or papers. Be formal and precise."
+	case "exam":
+		return "You are an Exam Strategist. Focus on test-taking strategies, time management, and prioritizing questions. Help the student prepare effectively for exams."
+	case "motivational":
+		return "You are a Motivational Coach. Be encouraging, positive, and supportive. Help the student set believable goals and overcome anxiety or procrastination."
+	default: // "general" or unknown
+		return "You are AcademAide, an academic advisor."
+	}
+}
+
+func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, error) {
 	ctx := context.Background()
 
 	// 1. Check Cache (Semantic/Exact)
@@ -133,14 +150,15 @@ func (s *RAGService) ProcessChat(studentID, message string) (string, error) {
 	sentiment := s.AnalyzeSentiment(message)
 
 	// 5. Construct Prompt
+	systemPrompt := s.getAgentPrompt(agentID)
 	prompt := fmt.Sprintf(`
-System: You are AcademAide, an academic advisor.
+System: %s
 Context: User is %s from Dept %s. %s. %s.
 Sentiment: User seems %s.
 History:
 %s
 User: %s
-Assistant:`, studentName, deptID, scheduleContext, vectorContext, sentiment, historyText.String(), message)
+Assistant:`, systemPrompt, studentName, deptID, scheduleContext, vectorContext, sentiment, historyText.String(), message)
 
 	// 6. Call Ollama
 	response, err := s.callOllama(prompt)
@@ -184,6 +202,26 @@ Assistant:`, studentName, deptID, scheduleContext, vectorContext, sentiment, his
 	config.RedisClient.Set(ctx, cacheKey, response, 5*time.Minute)
 
 	return response, nil
+}
+
+func (s *RAGService) ClearChatHistory(studentID string) error {
+	ctx := context.Background()
+
+	// 1. Delete Chat Logs
+	logsColl := config.MongoDB.Collection("ChatLogs")
+	_, err := logsColl.DeleteMany(ctx, bson.M{"student_id": studentID})
+	if err != nil {
+		return fmt.Errorf("failed to delete logs: %w", err)
+	}
+
+	// 2. Delete/Reset Context
+	contextColl := config.MongoDB.Collection("ChatContext")
+	_, err = contextColl.DeleteMany(ctx, bson.M{"student_id": studentID})
+	if err != nil {
+		return fmt.Errorf("failed to delete context: %w", err)
+	}
+
+	return nil
 }
 
 type OllamaRequest struct {

@@ -10,6 +10,7 @@ import (
 type ChatRequest struct {
 	StudentID string `json:"student_id"`
 	Message   string `json:"message"`
+	AgentID   string `json:"agent_id"` // Optional, defaults to "general" if empty
 }
 
 func ChatHandler(c *gin.Context) {
@@ -20,14 +21,31 @@ func ChatHandler(c *gin.Context) {
 	}
 
 	rag := services.NewRAGService()
-	response, err := rag.ProcessChat(req.StudentID, req.Message)
+	// If AgentID is missing, it will default to "general" in getAgentPrompt
+	response, err := rag.ProcessChat(req.StudentID, req.Message, req.AgentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI Processing Failed"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"response": response,
+		"response":   response,
 		"student_id": req.StudentID,
 	})
+}
+
+func ClearChatHandler(c *gin.Context) {
+	studentID := c.Query("student_id")
+	if studentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "student_id is required"})
+		return
+	}
+
+	rag := services.NewRAGService()
+	if err := rag.ClearChatHistory(studentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear history"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Chat history cleared"})
 }
