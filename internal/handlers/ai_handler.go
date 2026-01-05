@@ -1,8 +1,9 @@
 package handlers
 
 import (
-	"net/http"
 	"academ_aide/internal/services"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -67,4 +68,29 @@ func (h *AIHandler) CalculateWhatIf(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// AnalyzeQuiz godoc
+// @Summary      Analyze Quiz Performance
+// @Description  Returns weak areas and study priorities based on quiz results
+// @Tags         AI
+// @Accept       json
+// @Produce      json
+// @Param        request body services.QuizSubmission true "Quiz Results"
+// @Success      200 {object} services.QuizAnalysisResponse
+// @Router       /ai/quiz-analysis [post]
+func (h *AIHandler) AnalyzeQuiz(c *gin.Context) {
+	var req services.QuizSubmission
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	analysis, err := h.aiService.AnalyzeQuizPerformance(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Analysis failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
 }

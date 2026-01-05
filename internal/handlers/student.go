@@ -16,7 +16,7 @@ import (
 
 func GetStudentProfile(c *gin.Context) {
 	// Extract ID from Token via Context
-	val, exists := c.Get("student_id")
+	val, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
@@ -117,6 +117,34 @@ func GetStudentProfile(c *gin.Context) {
 		fmt.Println("Error fetching grades:", err)
 	}
 
+	// Fetch Next Class (Dashboard Feature)
+	currentTime := time.Now()
+	dayOfWeek := currentTime.Weekday().String()
+	currentTimeStr := currentTime.Format("15:04:00") // 24h format
+
+	var nextTitle, nextStart string
+	// Find the first class strictly after current time today
+	schedQuery := `
+		SELECT c.title, TO_CHAR(sch.start_time, 'HH24:MI')
+		FROM SCHEDULE sch 
+		JOIN ENROLLS_IN e ON sch.course_id = e.course_id
+		JOIN COURSE c ON sch.course_id = c.course_id
+		WHERE e.student_id=$1 AND sch.day_of_week=$2 AND sch.start_time > $3
+		ORDER BY sch.start_time ASC
+		LIMIT 1
+	`
+	err = config.PostgresDB.QueryRow(schedQuery, studentID, dayOfWeek, currentTimeStr).Scan(&nextTitle, &nextStart)
+	if err == nil {
+		s.NextClass = nextTitle
+		s.NextClassTime = nextStart
+	} else {
+		// Fallback: Check if there's an ongoing class? Or just say "None"
+		// If NO class upcoming today, we could check for *ongoing* class or set blank.
+		// For simplicity, let's leave it empty/default if no future class today.
+		s.NextClass = "No Upcoming Classes"
+		s.NextClassTime = "Today"
+	}
+
 	// 3. Store result in Redis (5 Minutes TTL)
 	if jsonBytes, err := json.Marshal(s); err == nil {
 		config.RedisClient.Set(ctx, cacheKey, jsonBytes, 5*time.Minute)
@@ -126,7 +154,7 @@ func GetStudentProfile(c *gin.Context) {
 }
 
 func GetStudentTimetable(c *gin.Context) {
-	rawID, exists := c.Get("student_id")
+	rawID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return

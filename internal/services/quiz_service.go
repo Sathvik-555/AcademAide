@@ -7,6 +7,7 @@ import (
 	"academ_aide/internal/repository"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,9 +30,17 @@ func NewQuizService() *QuizService {
 }
 
 // GenerateQuiz generates a quiz for a given course based on its syllabus
-func (s *QuizService) GenerateQuiz(courseID string) (*models.Quiz, error) {
+func (s *QuizService) GenerateQuiz(courseID string, unit int) (*models.Quiz, error) {
 	// 1. Fetch Syllabus Topics
-	rows, err := config.PostgresDB.Query("SELECT topic FROM SYLLABUS_UNIT WHERE course_id=$1", courseID)
+	var rows *sql.Rows
+	var err error
+
+	if unit > 0 {
+		rows, err = config.PostgresDB.Query("SELECT topic FROM SYLLABUS_UNIT WHERE course_id=$1 AND unit_no=$2", courseID, unit)
+	} else {
+		rows, err = config.PostgresDB.Query("SELECT topic FROM SYLLABUS_UNIT WHERE course_id=$1", courseID)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("fetching syllabus: %w", err)
 	}
@@ -46,14 +55,20 @@ func (s *QuizService) GenerateQuiz(courseID string) (*models.Quiz, error) {
 	}
 
 	if len(topics) == 0 {
-		return nil, fmt.Errorf("no syllabus found for course %s", courseID)
+		return nil, fmt.Errorf("no syllabus found for %s (Unit %d)", courseID, unit)
 	}
 
 	topicStr := strings.Join(topics, ", ")
 
 	// 2. RAG Retrieval
 	// Generate embedding for the broad topic context
-	query := fmt.Sprintf("Important concepts in %s: %s", courseID, topicStr)
+	var query string
+	if unit > 0 {
+		query = fmt.Sprintf("Important concepts in %s Unit %d", courseID, unit)
+	} else {
+		query = fmt.Sprintf("Important concepts in %s: %s", courseID, topicStr)
+	}
+
 	embedding, err := s.Embedder.GenerateEmbedding(query)
 
 	var contextText string
@@ -61,24 +76,34 @@ func (s *QuizService) GenerateQuiz(courseID string) (*models.Quiz, error) {
 		log.Println("Quiz embedding failed, falling back to basic prompt:", err)
 		contextText = "No course materials available."
 	} else {
-		// Fetch top 5 relevant chunks
-		materials, err := s.Repo.SearchMaterials(context.Background(), embedding, 5, courseID)
+		// Fetch top 5 relevant chunks, filtering by unit if specified
+		materials, err := s.Repo.SearchMaterials(context.Background(), embedding, 5, []string{courseID}, unit)
 		if err != nil {
 			log.Println("Quiz material search failed:", err)
 		} else {
 			var sb strings.Builder
 			for _, m := range materials {
-				sb.WriteString(fmt.Sprintf("---\nSource: %s\nContent: %s\n", m.SourceFile, m.Content))
+				sb.WriteString(fmt.Sprintf("---\nSource: %s\nUnit: %d\nContent: %s\n", m.SourceFile, m.UnitNo, m.Content))
 			}
 			contextText = sb.String()
 		}
 	}
 
 	// 3. Prompt Ollama
+	var unitContext string
+	if unit > 0 {
+		unitContext = fmt.Sprintf("focusing STRICTLY on Unit %d", unit)
+	} else {
+		unitContext = "covering the course topics"
+	}
+
 	prompt := fmt.Sprintf(`
-You are a professor. Generate a quiz with 5 multiple-choice questions for the course %s.
-Use the following course materials to generate relevant questions. 
-For each question, explicitly cite the "Source" file name where the information was found in the "reference" field.
+You are a professor. Generate a quiz with 5 multiple-choice questions for the course %s, %s.
+
+CRITICAL INSTRUCTION:
+1. You MUST use ONLY the content provided below in "Context Materials" to generate the questions.
+2. Do NOT use outside knowledge. If the provided materials are insufficient, do not make up facts.
+3. For each question, the "reference" field MUST be the exact 'Source' filename provided in the Context Materials (e.g. "Unit1_Intro.pdf"). Do not hallucinate filenames.
 
 Context Materials:
 %s
@@ -93,11 +118,11 @@ Return ONLY valid JSON in the following format, with no extra text:
       "text": "Question text here?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correct_option": 0,
-      "reference": "Source_File_Name.pdf"
+      "reference": "Exact_Source_File_Name.pdf"
     }
   ]
 }
-`, courseID, contextText, topicStr)
+`, courseID, unitContext, contextText, topicStr)
 
 	jsonResp, err := s.callOllamaJSON(prompt)
 	if err != nil {

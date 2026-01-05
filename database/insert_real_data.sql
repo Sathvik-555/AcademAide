@@ -1,7 +1,7 @@
 -- ============================================================
 -- 1. CLEAN UP (Delete existing mock data)
 -- ============================================================
-TRUNCATE TABLE ENROLLS_IN, GROUP_MEMBER, STUDY_GROUP, SCHEDULE, RESOURCE, SYLLABUS_UNIT, TEACHES, SECTION, COURSE, STUDENT, FACULTY, DEPARTMENT RESTART IDENTITY CASCADE;
+TRUNCATE TABLE ENROLLS_IN, SCHEDULE, SYLLABUS_UNIT, TEACHES, SECTION, COURSE, STUDENT, FACULTY, DEPARTMENT RESTART IDENTITY CASCADE;
 
 -- ============================================================
 -- 2. INSERT REAL DATA
@@ -174,3 +174,73 @@ INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time
 ('IS353IA', 'CSE-D', 'Friday', '11:30:00', '12:30:00', 'Chemical 107'), -- AIML
 ('CS354TA', 'CSE-D', 'Friday', '12:30:00', '13:30:00', 'Chemical 107'); -- TOC (T)
 
+
+-- ============================================================
+-- 3. PERSONALIZATION TEST DATA (Dynamic Scenarios)
+-- ============================================================
+
+-- Alice (The "Senior" - 4th Year, High Grades, Advanced Queries)
+-- Joined 2022 (Current Year 2026 - 2022 = 4th Year)
+INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
+VALUES ('TEST_SENIOR', 'Alice', 'Senior', 'alice@rvce.edu.in', '9999999991', 7, 2022, 'CSE');
+
+-- Enrollments for Alice (Advanced Courses & Prerequisites Passed)
+INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
+('TEST_SENIOR', 'XX355TBX', NULL, 'Enrolled'), -- Start learning Cloud
+('TEST_SENIOR', 'CS354TA', 'A', 'Completed'), -- Aced Logic/TOC
+('TEST_SENIOR', 'CD252IA', 'A', 'Completed'); -- Aced DBMS
+
+-- Schedule for Alice (Class starting SOON relative to "Monday 22:50" reference)
+INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
+('XX355TBX', 'CSE-D', 'Monday', '23:00:00', '23:59:00', 'Late Night Lab');
+
+
+-- Bob (The "Freshman" - 1st Year, Low Grades/Struggling)
+-- Joined 2025 (Current Year 2026 - 2025 = 1st Year)
+INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
+VALUES ('TEST_FRESHMAN', 'Bob', 'Freshman', 'bob@rvce.edu.in', '9999999992', 1, 2025, 'CSE');
+
+-- Enrollments for Bob (Intro Courses)
+INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
+('TEST_FRESHMAN', 'CD252IA', NULL, 'Enrolled'), -- Enrolled in DBMS
+('TEST_FRESHMAN', 'CS354TA', 'D', 'Completed'); -- Failed/Struggled with Logic previously
+
+-- Schedule for Bob (No Class Tonight)
+INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
+('CD252IA', 'CSE-A', 'Monday', '09:00:00', '10:00:00', 'Morning Hall');
+
+
+-- Charlie (The "Other" - Data Science Major)
+-- To test RAG Filtering (Should ONLY see Data Science stuff)
+INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
+VALUES ('TEST_DS', 'Charlie', 'DataSci', 'charlie@rvce.edu.in', '9999999993', 3, 2024, 'CD');
+
+INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
+('TEST_DS', 'CD252IA', NULL, 'Enrolled'); -- Only DBMS
+
+
+-- Dave (The "Stressed" - 3rd Year, Poor Grades, Heavy Schedule)
+INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
+VALUES ('TEST_STRESSED', 'Dave', 'Stressed', 'dave@rvce.edu.in', '9999999994', 5, 2023, 'CSE');
+
+INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
+('TEST_STRESSED', 'CS354TA', 'D', 'Completed'), -- Barely passed TOC
+('TEST_STRESSED', 'IS353IA', 'C', 'Enrolled'); -- Struggling with AI
+
+-- Schedule: Back to back classes on Monday evening
+INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
+('IS353IA', 'CSE-D', 'Monday', '20:00:00', '21:00:00', 'Night Class 1'),
+('CS354TA', 'CSE-D', 'Monday', '21:00:00', '22:00:00', 'Night Class 2');
+
+
+-- Eve (The "Topper" - 2nd Year, O Grade, Ahead of curve)
+INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
+VALUES ('TEST_TOPPER', 'Eve', 'Topper', 'eve@rvce.edu.in', '9999999995', 3, 2024, 'CSE');
+
+INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
+('TEST_TOPPER', 'CD252IA', 'O', 'Completed'), -- Perfect score in DBMS
+('TEST_TOPPER', 'CS354TA', 'A+', 'Completed'); -- Near perfect in TOC
+
+-- Schedule: Class tomorrow, free today
+INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
+('CD252IA', 'CSE-A', 'Tuesday', '09:00:00', '10:00:00', 'Morning Hall');

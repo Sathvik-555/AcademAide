@@ -9,6 +9,7 @@ import (
 
 type GenerateQuizRequest struct {
 	CourseID string `json:"course_id" binding:"required"`
+	Unit     int    `json:"unit"` // Optional
 }
 
 func GenerateQuiz(c *gin.Context) {
@@ -19,7 +20,7 @@ func GenerateQuiz(c *gin.Context) {
 	}
 
 	svc := services.NewQuizService()
-	quiz, err := svc.GenerateQuiz(req.CourseID)
+	quiz, err := svc.GenerateQuiz(req.CourseID, req.Unit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

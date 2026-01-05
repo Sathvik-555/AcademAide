@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, MessageSquare, Calendar, BookOpen, Users, Settings, LogOut, BrainCircuit, Users2 } from "lucide-react"
+import { LayoutDashboard, MessageSquare, Calendar, BookOpen, Users, Settings, LogOut, BrainCircuit } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 
 const sidebarItems = [
@@ -26,11 +26,6 @@ const sidebarItems = [
         title: "AI Quizzes",
         href: "/quizzes",
         icon: BrainCircuit,
-    },
-    {
-        title: "Community",
-        href: "/community",
-        icon: Users2,
     },
     {
         title: "Recommendations",

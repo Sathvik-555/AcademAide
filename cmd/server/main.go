@@ -67,7 +67,7 @@ func main() {
 	{
 		aiGroup.GET("/insights", aiHandler.GetInsights)
 		aiGroup.POST("/what-if", aiHandler.CalculateWhatIf)
-		aiGroup.POST("/what-if", aiHandler.CalculateWhatIf)
+		aiGroup.POST("/quiz-analysis", aiHandler.AnalyzeQuiz)
 	}
 
 	// Feature: Teacher Dashboard

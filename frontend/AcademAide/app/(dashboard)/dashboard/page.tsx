@@ -10,6 +10,8 @@ export default function DashboardPage() {
     const [name, setName] = useState("Student")
     const [coursesEnrolled, setCoursesEnrolled] = useState(0)
     const [cgpa, setCgpa] = useState(0.0)
+    const [nextClass, setNextClass] = useState("No Upcoming Classes")
+    const [nextClassTime, setNextClassTime] = useState("Today")
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -33,6 +35,10 @@ export default function DashboardPage() {
                     setName(data.first_name)
                     setCoursesEnrolled(data.courses_enrolled || 0)
                     setCgpa(data.cgpa || 0.0)
+                    if (data.next_class) {
+                        setNextClass(data.next_class)
+                        setNextClassTime(data.next_class_time ? `at ${data.next_class_time}` : "")
+                    }
                 }
             } catch (err) {
                 console.error("Failed to fetch profile", err)
@@ -92,8 +98,12 @@ export default function DashboardPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-xl font-bold text-amber-900 dark:text-amber-100 truncate">DBMS Lab</div>
-                        <p className="text-xs font-medium text-amber-600/80 dark:text-amber-300/80">In 30 minutes</p>
+                        <div className="text-xl font-bold text-amber-900 dark:text-amber-100 truncate" title={nextClass}>
+                            {loading ? "..." : nextClass}
+                        </div>
+                        <p className="text-xs font-medium text-amber-600/80 dark:text-amber-300/80">
+                            {loading ? "..." : nextClassTime}
+                        </p>
                     </CardContent>
                 </Card>
 

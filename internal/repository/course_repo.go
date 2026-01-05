@@ -87,14 +87,14 @@ func (r *CourseRepository) GetAllCoursesWithoutEmbeddings(ctx context.Context) (
 // Helper to format float slice to vector string
 func vecToString(vec []float32) string {
 	var sb strings.Builder
-	sb.WriteString("{") // Arrays use {} in Postgres (e.g. {0.1,0.2})
+	sb.WriteString("[") // pgvector uses [0.1,0.2]
 	for i, v := range vec {
 		if i > 0 {
 			sb.WriteString(",")
 		}
 		sb.WriteString(fmt.Sprintf("%f", v))
 	}
-	sb.WriteString("}")
+	sb.WriteString("]")
 	return sb.String()
 }
 
@@ -107,30 +107,49 @@ type CourseMaterial struct {
 }
 
 // SearchMaterials finds the most relevant material chunks using the custom cosine_similarity function
-func (r *CourseRepository) SearchMaterials(ctx context.Context, embedding []float32, limit int, courseIDFilter string) ([]CourseMaterial, error) {
-	// Format as Postgres Array: {0.1, 0.2, ...}
+func (r *CourseRepository) SearchMaterials(ctx context.Context, embedding []float32, limit int, courseIDFilter []string, unitFilter int) ([]CourseMaterial, error) {
+	// Format as PGVector string: [0.1, 0.2, ...]
 	vectorStr := vecToString(embedding)
 
 	// Build Query
 	var query string
 	var args []interface{}
 
-	if courseIDFilter != "" {
-		// Filter by Course ID
-		query = `
-			SELECT content_text, course_id, unit_no, cosine_similarity(embedding, $1::float8[]) as score, source_file
-			FROM COURSE_MATERIAL_CHUNK
-			WHERE course_id = $3
-			ORDER BY score DESC
-			LIMIT $2
-		`
-		args = []interface{}{vectorStr, limit, courseIDFilter}
+	if len(courseIDFilter) > 0 {
+		// PostgreSQL ANY operator for array filtering
+		// We need to convert the slice to a postgres array string literal if we were binding it as a single string,
+		// but using pq.Array or similar is better. However, since we might not have lib/pq,
+		// we can simpler use "course_id = ANY($3)" and pass the slice directly if the driver supports it.
+		// Standard lib/pq supports passing []string for []text or []varchar.
+		// Let's assume standard driver behavior.
+
+		if unitFilter > 0 {
+			// Filter by Course IDs AND Unit
+			query = `
+				SELECT content_text, course_id, unit_no, 1 - (embedding <=> $1::vector) as score, source_file
+				FROM COURSE_MATERIAL_CHUNK
+				WHERE course_id = ANY($3) AND unit_no = $4
+				ORDER BY embedding <=> $1::vector ASC
+				LIMIT $2
+			`
+			args = []interface{}{vectorStr, limit, (courseIDFilter), unitFilter}
+		} else {
+			// Filter by Course IDs only
+			query = `
+				SELECT content_text, course_id, unit_no, 1 - (embedding <=> $1::vector) as score, source_file
+				FROM COURSE_MATERIAL_CHUNK
+				WHERE course_id = ANY($3)
+				ORDER BY embedding <=> $1::vector ASC
+				LIMIT $2
+			`
+			args = []interface{}{vectorStr, limit, (courseIDFilter)}
+		}
 	} else {
-		// Global Search
+		// Global Search (No Course Filter)
 		query = `
-			SELECT content_text, course_id, unit_no, cosine_similarity(embedding, $1::float8[]) as score, source_file
+			SELECT content_text, course_id, unit_no, 1 - (embedding <=> $1::vector) as score, source_file
 			FROM COURSE_MATERIAL_CHUNK
-			ORDER BY score DESC
+			ORDER BY embedding <=> $1::vector ASC
 			LIMIT $2
 		`
 		args = []interface{}{vectorStr, limit}
@@ -138,7 +157,7 @@ func (r *CourseRepository) SearchMaterials(ctx context.Context, embedding []floa
 
 	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
 	defer rows.Close()
 

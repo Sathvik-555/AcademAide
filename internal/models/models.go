@@ -5,18 +5,20 @@ import "time"
 // PostgreSQL Entities
 
 type Student struct {
-	StudentID       string  `json:"student_id"`
-	FirstName       string  `json:"first_name"`
-	LastName        string  `json:"last_name"`
-	Email           string  `json:"email"`
-	PhoneNo         string  `json:"phone_no"`
-	Semester        int     `json:"semester"`
-	YearOfJoining   int     `json:"year_of_joining"`
+	StudentID           string  `json:"student_id"`
+	FirstName           string  `json:"first_name"`
+	LastName            string  `json:"last_name"`
+	Email               string  `json:"email"`
+	PhoneNo             string  `json:"phone_no"`
+	Semester            int     `json:"semester"`
+	YearOfJoining       int     `json:"year_of_joining"`
 	DeptID              string  `json:"dept_id"`
 	CoursesEnrolled     int     `json:"courses_enrolled,omitempty"`
 	CGPA                float64 `json:"cgpa,omitempty"`
 	WalletAddress       string  `json:"wallet_address,omitempty"`
 	EncryptedPrivateKey string  `json:"-"` // Never return to frontend
+	NextClass           string  `json:"next_class,omitempty"`
+	NextClassTime       string  `json:"next_class_time,omitempty"`
 }
 
 type ScheduleItem struct {
