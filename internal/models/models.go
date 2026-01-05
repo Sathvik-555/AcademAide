@@ -74,4 +74,5 @@ type Question struct {
 	Text          string   `bson:"text" json:"text"`
 	Options       []string `bson:"options" json:"options"`
 	CorrectOption int      `bson:"correct_option" json:"correct_option"` // Index 0-3
+	Reference     string   `bson:"reference,omitempty" json:"reference,omitempty"`
 }

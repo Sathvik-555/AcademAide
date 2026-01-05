@@ -11,6 +11,7 @@ interface Question {
     text: string
     options: string[]
     correct_option: number
+    reference?: string
 }
 
 interface Quiz {
@@ -20,8 +21,16 @@ interface Quiz {
     questions: Question[]
 }
 
+const COURSES = [
+    { id: "CD252IA", name: "Database Management Systems" },
+    { id: "CS354TA", name: "Theory of Computation" },
+    { id: "IS353IA", name: "Artificial Intelligence & ML" },
+    { id: "XX355TBX", name: "Cloud Computing" },
+    { id: "HS251TA", name: "Economics & Management" },
+]
+
 export default function QuizzesPage() {
-    const [courseId, setCourseId] = useState("CS101")
+    const [courseId, setCourseId] = useState(COURSES[0].id)
     const [loading, setLoading] = useState(false)
     const [quiz, setQuiz] = useState<Quiz | null>(null)
     const [answers, setAnswers] = useState<Record<number, number>>({})
@@ -92,13 +101,15 @@ export default function QuizzesPage() {
                     <CardDescription>Select a course code to instantly generate a practice quiz.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex gap-4">
-                    <input
-                        type="text"
+                    <select
                         value={courseId}
                         onChange={(e) => setCourseId(e.target.value)}
-                        placeholder="Course ID (e.g., CS101)"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm md:w-[200px]"
-                    />
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm md:w-[300px]"
+                    >
+                        {COURSES.map(c => (
+                            <option key={c.id} value={c.id}>{c.id} - {c.name}</option>
+                        ))}
+                    </select>
                     <Button onClick={generateQuiz} disabled={loading} className="gap-2">
                         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                         {loading ? "Generating..." : "Generate Quiz"}
@@ -162,6 +173,11 @@ export default function QuizzesPage() {
                                         </Button>
                                     )
                                 })}
+                                {submitted && q.reference && (
+                                    <div className="mt-2 text-sm text-muted-foreground flex items-center gap-1">
+                                        <span className="font-semibold">Source:</span> {q.reference}
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     ))}

@@ -87,13 +87,72 @@ func (r *CourseRepository) GetAllCoursesWithoutEmbeddings(ctx context.Context) (
 // Helper to format float slice to vector string
 func vecToString(vec []float32) string {
 	var sb strings.Builder
-	sb.WriteString("[")
+	sb.WriteString("{") // Arrays use {} in Postgres (e.g. {0.1,0.2})
 	for i, v := range vec {
 		if i > 0 {
 			sb.WriteString(",")
 		}
 		sb.WriteString(fmt.Sprintf("%f", v))
 	}
-	sb.WriteString("]")
+	sb.WriteString("}")
 	return sb.String()
+}
+
+type CourseMaterial struct {
+	Content    string
+	CourseID   string
+	UnitNo     int
+	Score      float64
+	SourceFile string
+}
+
+// SearchMaterials finds the most relevant material chunks using the custom cosine_similarity function
+func (r *CourseRepository) SearchMaterials(ctx context.Context, embedding []float32, limit int, courseIDFilter string) ([]CourseMaterial, error) {
+	// Format as Postgres Array: {0.1, 0.2, ...}
+	vectorStr := vecToString(embedding)
+
+	// Build Query
+	var query string
+	var args []interface{}
+
+	if courseIDFilter != "" {
+		// Filter by Course ID
+		query = `
+			SELECT content_text, course_id, unit_no, cosine_similarity(embedding, $1::float8[]) as score, source_file
+			FROM COURSE_MATERIAL_CHUNK
+			WHERE course_id = $3
+			ORDER BY score DESC
+			LIMIT $2
+		`
+		args = []interface{}{vectorStr, limit, courseIDFilter}
+	} else {
+		// Global Search
+		query = `
+			SELECT content_text, course_id, unit_no, cosine_similarity(embedding, $1::float8[]) as score, source_file
+			FROM COURSE_MATERIAL_CHUNK
+			ORDER BY score DESC
+			LIMIT $2
+		`
+		args = []interface{}{vectorStr, limit}
+	}
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var materials []CourseMaterial
+	for rows.Next() {
+		var m CourseMaterial
+		var sourceFile sql.NullString
+		if err := rows.Scan(&m.Content, &m.CourseID, &m.UnitNo, &m.Score, &sourceFile); err != nil {
+			return nil, err
+		}
+		if sourceFile.Valid {
+			m.SourceFile = sourceFile.String
+		}
+		materials = append(materials, m)
+	}
+	return materials, nil
 }

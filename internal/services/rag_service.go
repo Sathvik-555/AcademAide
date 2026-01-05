@@ -108,20 +108,21 @@ func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, er
 	}
 	scheduleContext := scheduleContextBuilder.String()
 
-	// 2.5 Vector Search Context
+	// 2.5 Vector Search Context (Materials)
 	vectorContext := ""
 	embedding, err := s.Embedder.GenerateEmbedding(message)
 	if err != nil {
 		log.Println("Embedding generation failed:", err)
 	} else {
-		courses, err := s.Repo.SearchByVector(ctx, embedding, 3) // Top 3 relevant courses
+		// New: Search Materials chunks
+		materials, err := s.Repo.SearchMaterials(ctx, embedding, 3, "")
 		if err != nil {
-			log.Println("Vector search failed:", err)
+			log.Println("Material search failed:", err)
 		} else {
 			var sb strings.Builder
-			sb.WriteString("Relevant Courses: ")
-			for _, c := range courses {
-				sb.WriteString(fmt.Sprintf("[%s: %s - %s] ", c.CourseID, c.Title, c.Description))
+			sb.WriteString("Relevant Materials:\n")
+			for _, m := range materials {
+				sb.WriteString(fmt.Sprintf("- [Course %s Unit %d] %s\n", m.CourseID, m.UnitNo, m.Content))
 			}
 			vectorContext = sb.String()
 		}
