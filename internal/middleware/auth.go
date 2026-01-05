@@ -49,12 +49,28 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// Extract claims
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			if studentID, ok := claims["student_id"].(string); ok {
-				c.Set("student_id", studentID)
+			// Extract User ID
+			if userID, ok := claims["user_id"].(string); ok {
+				c.Set("user_id", userID)
+			} else if studentID, ok := claims["student_id"].(string); ok {
+				// Fallback for old tokens if any
+				c.Set("user_id", studentID)
+				c.Set("role", "student")
+			}
+			
+			// Extract Role directly
+			if role, ok := claims["role"].(string); ok {
+				c.Set("role", role)
 			} else {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
-				c.Abort()
-				return
+				// Default to student if role missing but student_id present (legacy support)
+				if _, ok := claims["student_id"]; ok {
+					c.Set("role", "student")
+				}
+			}
+
+			// Extract Wallet (Optional)
+			if wallet, ok := claims["wallet_address"].(string); ok {
+				c.Set("wallet_address", wallet)
 			}
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
@@ -62,6 +78,25 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// RoleMiddleware checks if the user has the required role
+func RoleMiddleware(requiredRole string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Role not found in context"})
+			c.Abort()
+			return
+		}
+
+		if role.(string) != requiredRole {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }

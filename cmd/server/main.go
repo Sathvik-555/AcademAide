@@ -67,6 +67,18 @@ func main() {
 	{
 		aiGroup.GET("/insights", aiHandler.GetInsights)
 		aiGroup.POST("/what-if", aiHandler.CalculateWhatIf)
+		aiGroup.POST("/what-if", aiHandler.CalculateWhatIf)
+	}
+
+	// Feature: Teacher Dashboard
+	teacherHandler := handlers.NewTeacherHandler()
+	teacherGroup := r.Group("/teacher")
+	teacherGroup.Use(middleware.AuthMiddleware())
+	teacherGroup.Use(middleware.RoleMiddleware("teacher"))
+	{
+		teacherGroup.GET("/class-health", teacherHandler.GetClassHealth)
+		teacherGroup.GET("/at-risk", teacherHandler.GetAtRiskStudents)
+		teacherGroup.GET("/alerts", teacherHandler.GetAlerts)
 	}
 
 	// Start Server
