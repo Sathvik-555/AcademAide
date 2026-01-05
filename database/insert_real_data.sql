@@ -35,9 +35,6 @@ INSERT INTO SECTION (section_name, dept_id) VALUES
 
 -- Insert Students (Update with your details)
 INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) VALUES
-('1RV23CS221', 'Sathvik', 'Vasudeva', 'sathvikvasudeva.cs23@rvce.edu.in', '7019865562', 5, 2023, 'CSE'),
-('1RV23CS225', 'Sharanya', 'Narendran', 'sharanyan.cs23@rvce.edu.in', '9980706884', 5, 2023, 'CSE'),
-('1RV23CS234', 'Shrinivas', 'Deshpande', 'shrinivasdeshpande.cs23@rvce.edu.in', '6362744093', 5, 2023, 'CSE'),
 ('1RV23CD121', 'Pranav', 'Kumar', 'pranavkumar.cd23@rvce.edu.in', '6362744094', 5, 2023, 'CD');
 
 
@@ -63,7 +60,7 @@ INSERT INTO TEACHES (faculty_id, course_id, section_name) VALUES
 ('F102', 'CS354TA', 'CSE-D'),
 ('F103', 'XX355TBX', 'CSE-D'),
 ('F106', 'HS251TA', 'CSE-D'),
-('F105', 'CD252IA', 'CSE-D'),
+('F101', 'CD252IA', 'CSE-A'), -- Dr. Pratiba teaching DBMS to CSE-A (Sathviks Section)
 ('F104', 'IS353IA', 'CSE-D');
 
 -- Insert Syllabus (5 Units per Course = 25 Total)
@@ -105,28 +102,10 @@ INSERT INTO SYLLABUS_UNIT (unit_no, topic, course_id) VALUES
 
 
 -- Insert Enrollment
-INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
+-- Insert Enrollment (Empty - populated in Test Data section below)
+-- INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
 
--- Student 1
-('1RV23CS221', 'CD252IA', NULL, 'Enrolled'),  -- DBMS
-('1RV23CS221', 'CS354TA', NULL, 'Enrolled'),  -- TOC
-('1RV23CS221', 'IS353IA', NULL, 'Enrolled'),  -- AIML
-('1RV23CS221', 'XX355TBX', NULL, 'Enrolled'), -- Cloud Computing
-('1RV23CS221', 'HS251TA', NULL, 'Enrolled'),  -- Management & Economics
 
--- Student 2
-('1RV23CS225', 'CD252IA', NULL, 'Enrolled'),
-('1RV23CS225', 'CS354TA', NULL, 'Enrolled'),
-('1RV23CS225', 'IS353IA', NULL, 'Enrolled'),
-('1RV23CS225', 'XX355TBX', NULL, 'Enrolled'),
-('1RV23CS225', 'HS251TA', NULL, 'Enrolled'),
-
--- Student 3
-('1RV23CS234', 'CD252IA', NULL, 'Enrolled'),
-('1RV23CS234', 'CS354TA', NULL, 'Enrolled'),
-('1RV23CS234', 'IS353IA', NULL, 'Enrolled'),
-('1RV23CS234', 'XX355TBX', NULL, 'Enrolled'),
-('1RV23CS234', 'HS251TA', NULL, 'Enrolled');
 
 
 
@@ -176,47 +155,95 @@ INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time
 
 
 -- ============================================================
+-- 2.5 INSERT RESOURCES
+-- ============================================================
+TRUNCATE TABLE RESOURCE RESTART IDENTITY CASCADE;
+
+INSERT INTO RESOURCE (title, description, type, course_id, link) VALUES
+-- DBMS Resources
+('DBMS SQL Tutorial', 'Comprehensive guide to SQL commands', 'Article', 'CD252IA', 'https://www.geeksforgeeks.org/sql-tutorial/'),
+('Normalization Guide', '1NF, 2NF, 3NF and BCNF explained', 'Article', 'CD252IA', 'https://www.geeksforgeeks.org/database-normalization-introduction-normal-forms/'),
+('ACID Properties', 'Transaction Management Deep Dive', 'Video', 'CD252IA', 'https://www.youtube.com/watch?v=5W_E44y-Eio'),
+
+-- TOC Resources
+('Finite Automata Intro', 'DFA and NFA concepts', 'Article', 'CS354TA', 'https://www.geeksforgeeks.org/introduction-of-finite-automata/'),
+('Turing Machines', 'Introduction to Turing Machines', 'Video', 'CS354TA', 'https://www.youtube.com/watch?v=Qa6csfkK7_I'),
+('Undecidability', 'Halting Problem and Decidability', 'Article', 'CS354TA', 'https://www.geeksforgeeks.org/decidability-and-undecidability-in-toc/'),
+
+-- AIML Resources
+('AI Search Algorithms', 'BFS, DFS, A* Search Guide', 'Article', 'IS353IA', 'https://www.geeksforgeeks.org/search-algorithms-in-ai/'),
+('Machine Learning Full Course', 'Complete ML Course for Beginners', 'Video', 'IS353IA', 'https://www.youtube.com/watch?v=GwIo3gDZCVQ'),
+('Neural Networks Visualized', 'Deep Learning Concepts', 'Video', 'IS353IA', 'https://www.youtube.com/watch?v=aircAruvnKk'),
+
+-- Cloud Resources
+('AWS Cloud Practitioner', 'Official Certification Page', 'Web', 'XX355TBX', 'https://aws.amazon.com/certification/certified-cloud-practitioner/'),
+('Virtualization Explained', 'Hypervisors and VMs', 'Video', 'XX355TBX', 'https://www.youtube.com/watch?v=3hTk4cO8hQo'),
+
+-- Management Resources
+('Microeconomics 101', 'Supply and Demand Fundamentals', 'Article', 'HS251TA', 'https://www.investopedia.com/terms/m/microeconomics.asp');
+
+
+-- ============================================================
 -- 3. PERSONALIZATION TEST DATA (Dynamic Scenarios)
 -- ============================================================
 
--- Alice (The "Senior" - 4th Year, High Grades, Advanced Queries)
--- Joined 2022 (Current Year 2026 - 2022 = 4th Year)
+-- Sharanya (Replaces Alice as the "Senior/Topper" persona for testing)
 INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
-VALUES ('TEST_SENIOR', 'Alice', 'Senior', 'alice@rvce.edu.in', '9999999991', 7, 2022, 'CSE');
+VALUES ('1RV23CS225', 'Sharanya', 'Narendran', 'sharanyan.cs23@rvce.edu.in', '9980706884', 5, 2023, 'CSE');
 
--- Enrollments for Alice (Advanced Courses & Prerequisites Passed)
+-- Enrollments for Sharanya (Matching Sathvik's Schedule + High Grades)
 INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
-('TEST_SENIOR', 'XX355TBX', NULL, 'Enrolled'), -- Start learning Cloud
-('TEST_SENIOR', 'CS354TA', 'A', 'Completed'), -- Aced Logic/TOC
-('TEST_SENIOR', 'CD252IA', 'A', 'Completed'); -- Aced DBMS
+('1RV23CS225', 'CD252IA', 'A', 'Enrolled'),    -- DBMS (A Grade)
+('1RV23CS225', 'CS354TA', 'A', 'Enrolled'),    -- TOC (A Grade)
+('1RV23CS225', 'IS353IA', NULL, 'Enrolled'),   -- AIML
+('1RV23CS225', 'XX355TBX', NULL, 'Enrolled'),  -- Cloud
+('1RV23CS225', 'HS251TA', NULL, 'Enrolled');   -- Management
 
--- Schedule for Alice (Class starting SOON relative to "Monday 22:50" reference)
-INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
-('XX355TBX', 'CSE-D', 'Monday', '23:00:00', '23:59:00', 'Late Night Lab');
+-- Schedule: Sharanya follows the standard class schedule defined above (no custom inserts needed).
 
 
--- Bob (The "Freshman" - 1st Year, Low Grades/Struggling)
+-- Sathvik (Replaces Bob as the "Freshman/Struggling" persona for testing)
 -- Joined 2025 (Current Year 2026 - 2025 = 1st Year)
 INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
-VALUES ('TEST_FRESHMAN', 'Bob', 'Freshman', 'bob@rvce.edu.in', '9999999992', 1, 2025, 'CSE');
+VALUES ('1RV23CS221', 'Sathvik', 'Vasudeva', 'sathvikvasudeva.cs23@rvce.edu.in', '7019865562', 1, 2025, 'CSE');
 
--- Enrollments for Bob (Intro Courses)
+-- Enrollments for Sathvik
 INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
-('TEST_FRESHMAN', 'CD252IA', NULL, 'Enrolled'), -- Enrolled in DBMS
-('TEST_FRESHMAN', 'CS354TA', 'D', 'Completed'); -- Failed/Struggled with Logic previously
+('1RV23CS221', 'CD252IA', NULL, 'Enrolled'), -- Enrolled in DBMS
+('1RV23CS221', 'CS354TA', 'D', 'Completed'); -- Failed/Struggled with Logic previously
 
--- Schedule for Bob (No Class Tonight)
+-- Schedule for Sathvik (No Class Tonight)
 INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
 ('CD252IA', 'CSE-A', 'Monday', '09:00:00', '10:00:00', 'Morning Hall');
 
 
--- Charlie (The "Other" - Data Science Major)
--- To test RAG Filtering (Should ONLY see Data Science stuff)
+-- Shrinivas (Replaces Charlie)
+-- Testing: Enrollments EXCEPT TOC, new timetable
 INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
-VALUES ('TEST_DS', 'Charlie', 'DataSci', 'charlie@rvce.edu.in', '9999999993', 3, 2024, 'CD');
+VALUES ('1RV23CS234', 'Shrinivas', 'Deshpande', 'shrinivasdeshpande.cs23@rvce.edu.in', '6362744093', 5, 2023, 'CSE');
 
 INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
-('TEST_DS', 'CD252IA', NULL, 'Enrolled'); -- Only DBMS
+('1RV23CS234', 'CD252IA', NULL, 'Enrolled'),   -- DBMS
+('1RV23CS234', 'IS353IA', NULL, 'Enrolled'),   -- AIML
+('1RV23CS234', 'XX355TBX', NULL, 'Enrolled'),  -- Cloud
+('1RV23CS234', 'HS251TA', NULL, 'Enrolled');   -- Management
+
+-- Schedule for Shrinivas (Custom Timetable)
+INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
+-- Monday
+('CD252IA', 'CSE-A', 'Monday', '14:00:00', '15:00:00', 'Lab 1'),
+('IS353IA', 'CSE-A', 'Monday', '15:00:00', '16:00:00', 'Lab 1'),
+-- Tuesday
+('XX355TBX', 'CSE-A', 'Tuesday', '10:00:00', '11:00:00', 'Classroom 202'),
+-- Wednesday
+('CD252IA', 'CSE-A', 'Wednesday', '09:00:00', '11:00:00', 'Lab 3'), -- DBMS Lab
+('HS251TA', 'CSE-A', 'Wednesday', '11:30:00', '12:30:00', 'Classroom 202'),
+-- Thursday
+('XX355TBX', 'CSE-A', 'Thursday', '09:00:00', '10:00:00', 'Classroom 202'),
+('HS251TA', 'CSE-A', 'Thursday', '10:00:00', '11:00:00', 'Classroom 202'),
+-- Friday
+('IS353IA', 'CSE-A', 'Friday', '11:00:00', '12:00:00', 'Classroom 202'),
+('XX355TBX', 'CSE-A', 'Friday', '14:00:00', '15:00:00', 'Classroom 202');
 
 
 -- Dave (The "Stressed" - 3rd Year, Poor Grades, Heavy Schedule)
@@ -233,14 +260,15 @@ INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time
 ('CS354TA', 'CSE-D', 'Monday', '21:00:00', '22:00:00', 'Night Class 2');
 
 
--- Eve (The "Topper" - 2nd Year, O Grade, Ahead of curve)
+-- Sai Abhiram (Replaces Eve) - Assigned D Grade in DBMS
 INSERT INTO STUDENT (student_id, s_first_name, s_last_name, s_email, s_phone_no, semester, year_of_joining, dept_id) 
-VALUES ('TEST_TOPPER', 'Eve', 'Topper', 'eve@rvce.edu.in', '9999999995', 3, 2024, 'CSE');
+VALUES ('1RV23CS211', 'Sai', 'Abhiram', 'saiabhiram.cs23@rvce.edu.in', '9999999995', 3, 2024, 'CSE');
 
 INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
-('TEST_TOPPER', 'CD252IA', 'O', 'Completed'), -- Perfect score in DBMS
-('TEST_TOPPER', 'CS354TA', 'A+', 'Completed'); -- Near perfect in TOC
+('1RV23CS211', 'CD252IA', 'D', 'Enrolled'); -- Struggling with DBMS (D Grade)
 
 -- Schedule: Class tomorrow, free today
+INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
+('CD252IA', 'CSE-A', 'Tuesday', '09:00:00', '11:00:00', 'Room 101');
 INSERT INTO SCHEDULE (course_id, section_name, day_of_week, start_time, end_time, room_number) VALUES
 ('CD252IA', 'CSE-A', 'Tuesday', '09:00:00', '10:00:00', 'Morning Hall');

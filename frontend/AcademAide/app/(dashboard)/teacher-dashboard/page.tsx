@@ -21,10 +21,17 @@ interface AtRiskStats {
 
 export default function TeacherDashboard() {
     const router = useRouter()
+    const [course, setCourse] = useState<{ course_id: string; title: string } | null>(null)
+    const [students, setStudents] = useState<any[]>([])
+
     const [health, setHealth] = useState<ClassHealth | null>(null)
     const [atRisk, setAtRisk] = useState<AtRiskStats | null>(null)
     const [alerts, setAlerts] = useState<string[]>([])
     const [loading, setLoading] = useState(true)
+
+    const [selectedStudent, setSelectedStudent] = useState<any | null>(null)
+    const [detailLoading, setDetailLoading] = useState(false)
+    const [announcement, setAnnouncement] = useState("")
 
     useEffect(() => {
         const fetchData = async () => {
@@ -33,19 +40,30 @@ export default function TeacherDashboard() {
                 router.push("/login")
                 return
             }
-
-            // Using mock course_id "CS101" for MVP demo as per seeded data
-            const courseId = "CS101"
             const headers = { "Authorization": `Bearer ${token}` }
 
             try {
-                // Fetch Class Health
-                const healthRes = await fetch(`http://localhost:8080/teacher/class-health?course_id=${courseId}`, { headers })
-                if (healthRes.ok) setHealth(await healthRes.json())
+                // 1. Fetch Teacher's Courses
+                const courseRes = await fetch("http://localhost:8080/teacher/courses", { headers })
+                if (!courseRes.ok) return
+                const courses = await courseRes.json()
 
-                // Fetch At-Risk Stats
-                const riskRes = await fetch(`http://localhost:8080/teacher/at-risk?course_id=${courseId}`, { headers })
-                if (riskRes.ok) setAtRisk(await riskRes.json())
+                if (courses && courses.length > 0) {
+                    const firstCourse = courses[0]
+                    setCourse(firstCourse)
+                    const courseId = firstCourse.course_id
+
+                    // 2. Fetch Health & Risk
+                    const healthRes = await fetch(`http://localhost:8080/teacher/class-health?course_id=${courseId}`, { headers })
+                    if (healthRes.ok) setHealth(await healthRes.json())
+
+                    const riskRes = await fetch(`http://localhost:8080/teacher/at-risk?course_id=${courseId}`, { headers })
+                    if (riskRes.ok) setAtRisk(await riskRes.json())
+
+                    // 3. Fetch Students List
+                    const studRes = await fetch(`http://localhost:8080/teacher/students?course_id=${courseId}`, { headers })
+                    if (studRes.ok) setStudents(await studRes.json())
+                }
 
                 // Fetch Alerts
                 const alertsRes = await fetch(`http://localhost:8080/teacher/alerts`, { headers })
@@ -59,7 +77,6 @@ export default function TeacherDashboard() {
                 setLoading(false)
             }
         }
-
         fetchData()
     }, [router])
 
@@ -71,16 +88,57 @@ export default function TeacherDashboard() {
         router.push("/login")
     }
 
-    if (loading) {
-        return <div className="flex h-screen items-center justify-center">Loading dashboard...</div>
+    const fetchStudentDetails = async (studentId: string) => {
+        if (!course) return
+        setDetailLoading(true)
+        setSelectedStudent(null) // Reset
+        try {
+            const token = Cookies.get("token")
+            const res = await fetch(`http://localhost:8080/teacher/student-details?student_id=${studentId}&course_id=${course.course_id}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setSelectedStudent(data)
+            }
+        } catch (e) {
+            console.error("Error details", e)
+        } finally {
+            setDetailLoading(false)
+        }
     }
+
+    const postAnnouncement = async () => {
+        if (!course || !announcement) return
+        try {
+            const token = Cookies.get("token")
+            const res = await fetch(`http://localhost:8080/teacher/announce`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ course_id: course.course_id, content: announcement })
+            })
+            if (res.ok) {
+                alert("Announcement Posted!")
+                setAnnouncement("")
+            }
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    if (loading) return <div className="flex h-screen items-center justify-center">Loading dashboard...</div>
 
     return (
         <div className="flex min-h-screen flex-col p-8 gap-8 bg-gray-50 dark:bg-slate-950">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Teacher Dashboard</h1>
-                    <p className="text-muted-foreground">Overview for {health?.title || "your classes"}</p>
+                    <p className="text-muted-foreground">
+                        {course ? `Overview for ${course.title} (${course.course_id})` : "No classes assigned."}
+                    </p>
                 </div>
                 <button onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors">
                     <LogOut className="h-4 w-4" />
@@ -106,7 +164,7 @@ export default function TeacherDashboard() {
                             + {atRisk?.medium_risk_count || 0} Medium Risk
                         </div>
                         <p className="text-xs text-muted-foreground mt-4 italic">
-                            Students with attendance &lt;75% or falling grades.
+                            Students with Low Grades (D/F) needs attention.
                         </p>
                     </CardContent>
                 </Card>
@@ -114,14 +172,14 @@ export default function TeacherDashboard() {
                 {/* Class Health Stats */}
                 <Card className="glass border-none shadow-md">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium">Attendance Distribution</CardTitle>
+                        <CardTitle className="text-sm font-medium">Performance Heatmap</CardTitle>
                         <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-2">
-                            {health && Object.entries(health.attendance_distribution).map(([range, count]) => (
-                                <div key={range} className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground">{range}</span>
+                            {health && Object.entries(health.performance_heatmap).map(([grade, count]) => (
+                                <div key={grade} className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">{grade}</span>
                                     <span className="font-medium">{count} Students</span>
                                 </div>
                             ))}
@@ -149,23 +207,100 @@ export default function TeacherDashboard() {
                 </Card>
             </div>
 
-            {/* Performance Heatmap (Simplified as List for MVP) */}
-            <Card className="glass border-none shadow-md">
-                <CardHeader>
-                    <CardTitle>Performance Overview</CardTitle>
-                    <CardDescription>Grade distribution for {health?.title}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {health && Object.entries(health.performance_heatmap).map(([grade, count]) => (
-                            <div key={grade} className="p-4 rounded-lg bg-secondary/20 flex flex-col items-center justify-center text-center">
-                                <span className="text-2xl font-bold">{count}</span>
-                                <span className="text-sm text-muted-foreground mt-1">{grade}</span>
+            <div className="grid gap-6 md:grid-cols-3">
+                {/* Students List Section */}
+                {students.length > 0 && (
+                    <Card className="glass border-none shadow-md md:col-span-2">
+                        <CardHeader>
+                            <CardTitle>My Students ({students.length})</CardTitle>
+                            <CardDescription>Enrolled in {course?.title}. Click to view details.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {students.map((student) => (
+                                    <div
+                                        key={student.student_id}
+                                        onClick={() => fetchStudentDetails(student.student_id)}
+                                        className="p-4 rounded-lg bg-card border flex items-center gap-3 cursor-pointer hover:bg-secondary/50 transition-colors"
+                                    >
+                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                            {student.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <p className="font-medium">{student.name}</p>
+                                            <p className="text-xs text-muted-foreground">{student.student_id}</p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Announcement Box */}
+                <Card className="glass border-none shadow-md">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <BookOpen className="h-4 w-4" />
+                            Broadcast
+                        </CardTitle>
+                        <CardDescription>Post to enrolled students</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <textarea
+                            className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            placeholder="Type announcement..."
+                            value={announcement}
+                            onChange={(e) => setAnnouncement(e.target.value)}
+                        />
+                        <button
+                            onClick={postAnnouncement}
+                            disabled={!announcement}
+                            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2 w-full"
+                        >
+                            Post Announcement
+                        </button>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Student Details Dialog/Modal */}
+            {selectedStudent && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <Card className="w-full max-w-md bg-background border-none shadow-xl">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle>{selectedStudent.name}</CardTitle>
+                                <CardDescription>{selectedStudent.student_id}</CardDescription>
+                            </div>
+                            <button onClick={() => setSelectedStudent(null)} className="text-muted-foreground hover:text-foreground">X</button>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p className="text-muted-foreground">Email</p>
+                                    <p className="font-medium truncate">{selectedStudent.email}</p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground">Course Grade</p>
+                                    <p className={`font-bold ${['A', 'A+'].includes(selectedStudent.current_grade) ? 'text-green-600' : 'text-foreground'}`}>
+                                        {selectedStudent.current_grade}
+                                    </p>
+                                </div>
+                                <div className="col-span-2">
+                                    <p className="text-muted-foreground">Risk Status</p>
+                                    <div className={`mt-1 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${selectedStudent.risk_status === 'High Risk'
+                                            ? 'border-transparent bg-red-500 text-white shadow hover:bg-red-600'
+                                            : 'border-transparent bg-green-500 text-white shadow hover:bg-green-600'
+                                        }`}>
+                                        {selectedStudent.risk_status}
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
         </div>
     )
 }

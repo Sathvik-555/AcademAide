@@ -223,3 +223,86 @@ func GetStudentTimetable(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"source": "database", "data": schedule})
 }
+
+func GetStudentResources(c *gin.Context) {
+	rawID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	studentID := rawID.(string)
+
+	query := `
+		SELECT r.resource_id, r.title, r.description, r.type, r.course_id, r.link
+		FROM RESOURCE r
+		JOIN ENROLLS_IN e ON r.course_id = e.course_id
+		WHERE e.student_id = $1
+	`
+	rows, err := config.PostgresDB.Query(query, studentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var resources []models.Resource
+	for rows.Next() {
+		var r models.Resource
+		var desc, link sql.NullString
+		if err := rows.Scan(&r.ResourceID, &r.Title, &desc, &r.Type, &r.CourseID, &link); err != nil {
+			continue
+		}
+		if desc.Valid {
+			r.Description = desc.String
+		}
+		if link.Valid {
+			r.Link = link.String
+		}
+		resources = append(resources, r)
+	}
+
+	c.JSON(http.StatusOK, resources)
+}
+
+// GetAnnouncements godoc
+// @Summary      Get Course Announcements
+// @Description  Returns enrolled course announcements
+// @Tags         Student
+// @Router       /student/announcements [get]
+func GetAnnouncements(c *gin.Context) {
+	rawID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	studentID := rawID.(string)
+
+	query := `
+		SELECT a.content, a.created_at, c.title
+		FROM ANNOUNCEMENT a
+		JOIN ENROLLS_IN e ON a.course_id = e.course_id
+		JOIN COURSE c ON a.course_id = c.course_id
+		WHERE e.student_id = $1
+		ORDER BY a.created_at DESC
+	`
+	rows, err := config.PostgresDB.Query(query, studentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	var announcements []gin.H
+	for rows.Next() {
+		var content, courseTitle string
+		var createdAt time.Time
+		if err := rows.Scan(&content, &createdAt, &courseTitle); err == nil {
+			announcements = append(announcements, gin.H{
+				"course":  courseTitle,
+				"content": content,
+				"date":    createdAt.Format("Jan 02, 15:04"),
+			})
+		}
+	}
+	c.JSON(http.StatusOK, announcements)
+}

@@ -121,41 +121,56 @@ export default function DashboardPage() {
                 </Card>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 glass border-none">
-                    <CardHeader>
-                        <CardTitle>Overview</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pl-2">
-                        <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-                            Attendance Chart Placeholder
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="col-span-3">
-                    <CardHeader>
-                        <CardTitle>Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-4">
-                                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">AI</div>
-                                <div className="grid gap-1">
-                                    <p className="text-sm font-medium">Chatted with Assistant</p>
-                                    <p className="text-xs text-muted-foreground">2 hours ago</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">DL</div>
-                                <div className="grid gap-1">
-                                    <p className="text-sm font-medium">Submission: Lab Report</p>
-                                    <p className="text-xs text-muted-foreground">Yesterday</p>
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
+            {/* Announcements Section */}
+            <AnnouncementsList />
         </div>
+    )
+}
+
+function AnnouncementsList() {
+    const [announcements, setAnnouncements] = useState<any[]>([])
+
+    useEffect(() => {
+        const fetchAnnouncements = async () => {
+            const token = Cookies.get("token")
+            if (!token) return
+            try {
+                const res = await fetch("http://localhost:8080/student/announcements", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                })
+                if (res.ok) {
+                    setAnnouncements(await res.json())
+                }
+            } catch (e) {
+                console.error(e)
+            }
+        }
+        fetchAnnouncements()
+    }, [])
+
+    if (announcements.length === 0) return null
+
+    return (
+        <Card className="glass border-none shadow-lg">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-blue-500" />
+                    Latest Announcements
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-4">
+                    {announcements.map((a, i) => (
+                        <div key={i} className="p-4 rounded-lg bg-secondary/20 flex flex-col gap-1 border-l-4 border-blue-500">
+                            <div className="flex justify-between items-center">
+                                <span className="font-bold text-sm text-foreground">{a.course}</span>
+                                <span className="text-xs text-muted-foreground">{a.date}</span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{a.content}</p>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
     )
 }

@@ -47,6 +47,15 @@ type GroupMember struct {
 	JoinedAt  time.Time `json:"joined_at"`
 }
 
+type Resource struct {
+	ResourceID  int    `json:"resource_id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Type        string `json:"type"`
+	CourseID    string `json:"course_id"`
+	Link        string `json:"link"`
+}
+
 // MongoDB Entities
 
 type ChatLog struct {

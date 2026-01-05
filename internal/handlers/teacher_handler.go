@@ -14,13 +14,69 @@ func NewTeacherHandler() *TeacherHandler {
 	return &TeacherHandler{}
 }
 
-// GetClassHealth godoc
-// @Summary      Get Class Academic Health
-// @Description  Returns attendance distribution and performance stats for a course
+// GetMyCourses godoc
+// @Summary      Get Faculty Courses
+// @Description  Returns list of courses taught by the logged-in faculty
+// @Tags         Teacher
+// @Router       /teacher/courses [get]
+func (h *TeacherHandler) GetMyCourses(c *gin.Context) {
+	facultyID := c.GetString("user_id") // Authenticated Faculty ID
+	rows, err := config.PostgresDB.Query(`
+		SELECT c.course_id, c.title, t.section_name 
+		FROM TEACHES t
+		JOIN COURSE c ON t.course_id = c.course_id
+		WHERE t.faculty_id=$1
+	`, facultyID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB Error"})
+		return
+	}
+	defer rows.Close()
+
+	var courses []gin.H
+	for rows.Next() {
+		var id, title, section string
+		if err := rows.Scan(&id, &title, &section); err == nil {
+			courses = append(courses, gin.H{"course_id": id, "title": title, "section": section})
+		}
+	}
+	c.JSON(http.StatusOK, courses)
+}
+
+// GetEnrolledStudents godoc
+// @Summary      Get Students List
+// @Description  Returns enrolled students for a course
 // @Tags         Teacher
 // @Param        course_id query string true "Course ID"
-// @Success      200 {object} map[string]interface{}
-// @Router       /teacher/class-health [get]
+// @Router       /teacher/students [get]
+func (h *TeacherHandler) GetEnrolledStudents(c *gin.Context) {
+	courseID := c.Query("course_id")
+	rows, err := config.PostgresDB.Query(`
+		SELECT s.student_id, s.s_first_name, s.s_last_name, s.s_email
+		FROM ENROLLS_IN e
+		JOIN STUDENT s ON e.student_id = s.student_id
+		WHERE e.course_id=$1
+	`, courseID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB Error"})
+		return
+	}
+	defer rows.Close()
+
+	var students []gin.H
+	for rows.Next() {
+		var id, fname, lname, email string
+		if err := rows.Scan(&id, &fname, &lname, &email); err == nil {
+			students = append(students, gin.H{
+				"student_id": id,
+				"name":       fname + " " + lname,
+				"email":      email,
+			})
+		}
+	}
+	c.JSON(http.StatusOK, students)
+}
+
 func (h *TeacherHandler) GetClassHealth(c *gin.Context) {
 	courseID := c.Query("course_id")
 	if courseID == "" {
@@ -28,9 +84,6 @@ func (h *TeacherHandler) GetClassHealth(c *gin.Context) {
 		return
 	}
 
-	// In a real app, query detailed attendance/grades.
-	// For MVP without granular attendance table, we mock the distribution based on the course.
-	// We verify the course exists first.
 	var title string
 	err := config.PostgresDB.QueryRow("SELECT title FROM COURSE WHERE course_id=$1", courseID).Scan(&title)
 	if err == sql.ErrNoRows {
@@ -41,84 +94,145 @@ func (h *TeacherHandler) GetClassHealth(c *gin.Context) {
 		return
 	}
 
-	// Mock Data for Distribution
-	healthData := gin.H{
-		"course_id":   courseID,
-		"title":       title,
-		"attendance_distribution": gin.H{
-			"90-100%": 15,
-			"75-90%":  20,
-			"60-75%":  5,
-			"<60%":    2,
-		},
-		"performance_heatmap": gin.H{
-			"Excellent (A/A+)": 10,
-			"Good (B/B+)":      18,
-			"Average (C/C+)":   10,
-			"Poor (D/F)":       4,
-		},
+	// Dynamic Grades
+	rows, err := config.PostgresDB.Query("SELECT grade FROM ENROLLS_IN WHERE course_id=$1 AND grade IS NOT NULL", courseID)
+	perfMap := map[string]int{"Excellent (A/A+)": 0, "Good (B/B+)": 0, "Average (C/C+)": 0, "Poor (D/F)": 0}
+
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var g string
+			if err := rows.Scan(&g); err == nil {
+				switch g {
+				case "O", "A+", "A":
+					perfMap["Excellent (A/A+)"]++
+				case "B+", "B":
+					perfMap["Good (B/B+)"]++
+				case "C+", "C":
+					perfMap["Average (C/C+)"]++
+				case "D", "F":
+					perfMap["Poor (D/F)"]++
+				}
+			}
+		}
 	}
 
+	healthData := gin.H{
+		"course_id": courseID,
+		"title":     title,
+		// Attendance still mocked as we lack attendance table
+		"attendance_distribution": gin.H{"90-100%": 12, "75-90%": 8, "60-75%": 3, "<60%": 1},
+		"performance_heatmap":     perfMap,
+	}
 	c.JSON(http.StatusOK, healthData)
 }
 
-// GetAtRiskStudents godoc
-// @Summary      Get At-Risk Student Counts
-// @Description  Returns aggregated counts of students at risk. Privacy safe.
-// @Tags         Teacher
-// @Param        course_id query string true "Course ID"
-// @Success      200 {object} map[string]int
-// @Router       /teacher/at-risk [get]
-// Privacy note: This handler returns aggregated statistics only.
-// Individual student identities are intentionally excluded.
 func (h *TeacherHandler) GetAtRiskStudents(c *gin.Context) {
 	courseID := c.Query("course_id")
-	if courseID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "course_id is required"})
+	// Dynamic Risk Count (Based on D/F grades)
+	var highRisk int
+	config.PostgresDB.QueryRow("SELECT COUNT(*) FROM ENROLLS_IN WHERE course_id=$1 AND grade IN ('D', 'F')", courseID).Scan(&highRisk)
+
+	c.JSON(http.StatusOK, gin.H{
+		"high_risk_count":   highRisk,
+		"medium_risk_count": 2,  // Mocked
+		"low_risk_count":    20, // Mocked
+	})
+}
+
+// GetStudentDetails godoc
+// @Summary      Get Student Details
+// @Description  Returns detailed info for a student including grade and risk status
+// @Tags         Teacher
+// @Param        student_id query string true "Student ID"
+// @Param        course_id query string true "Course ID"
+// @Router       /teacher/student-details [get]
+func (h *TeacherHandler) GetStudentDetails(c *gin.Context) {
+	studentID := c.Query("student_id")
+	courseID := c.Query("course_id")
+
+	var fname, lname, email string
+	err := config.PostgresDB.QueryRow("SELECT s_first_name, s_last_name, s_email FROM STUDENT WHERE student_id=$1", studentID).Scan(&fname, &lname, &email)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Student not found"})
 		return
 	}
 
-	// Mock logic simulating risk analysis
-	// In production, run complex queries on ENROLLS_IN and ATTENDANCE tables.
-	response := gin.H{
-		"high_risk_count":   3,  // < 60% attendance or failing grades
-		"medium_risk_count": 8,  // 60-75% attendance or dropping grades
-		"low_risk_count":    31, // Healthy
+	var grade sql.NullString
+	config.PostgresDB.QueryRow("SELECT grade FROM ENROLLS_IN WHERE student_id=$1 AND course_id=$2", studentID, courseID).Scan(&grade)
+
+	currentGrade := "N/A"
+	if grade.Valid {
+		currentGrade = grade.String
 	}
 
-	c.JSON(http.StatusOK, response)
+	riskStatus := "No Risk"
+	if currentGrade == "D" || currentGrade == "F" {
+		riskStatus = "High Risk"
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"student_id":    studentID,
+		"name":          fname + " " + lname,
+		"email":         email,
+		"course_id":     courseID,
+		"current_grade": currentGrade,
+		"risk_status":   riskStatus,
+		"attendance":    "85%",                          // Mocked
+		"last_active":   "2 days ago",                   // Mocked
+		"other_courses": []string{"CS354TA", "IS353IA"}, // Mocked
+	})
 }
 
-// GetAlerts godoc
-// @Summary      Get Early Warning Alerts
-// @Description  Returns aggregated warnings for the teacher's courses
+// PostAnnouncement godoc
+// @Summary      Post Announcement
+// @Description  Creates a new class announcement
 // @Tags         Teacher
-// @Success      200 {object} []string
-// @Router       /teacher/alerts [get]
-func (h *TeacherHandler) GetAlerts(c *gin.Context) {
-	userID := c.GetString("user_id") // Should be faculty_id
+// @Router       /teacher/announce [post]
+func (h *TeacherHandler) PostAnnouncement(c *gin.Context) {
+	var req struct {
+		CourseID string `json:"course_id"`
+		Content  string `json:"content"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+	facultyID := c.GetString("user_id")
 
-	// 1. Get Courses taught by this faculty
+	_, err := config.PostgresDB.Exec("INSERT INTO ANNOUNCEMENT (faculty_id, course_id, content) VALUES ($1, $2, $3)", facultyID, req.CourseID, req.Content)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to post announcement"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Announcement posted successfully"})
+}
+
+// GetAlerts (Unchanged mostly, but validated)
+func (h *TeacherHandler) GetAlerts(c *gin.Context) {
+	userID := c.GetString("user_id")
 	rows, err := config.PostgresDB.Query("SELECT course_id FROM TEACHES WHERE faculty_id=$1", userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB Error"})
 		return
 	}
 	defer rows.Close()
-
 	var alerts []string
 	for rows.Next() {
 		var cID string
-		if err := rows.Scan(&cID); err == nil {
-			// Generate mock alerts for each course
-			alerts = append(alerts, "3 students in "+cID+" likely to fall below 75% attendance in 2 weeks")
-		}
+		rows.Scan(&cID)
+		// Mock logic but tied to course
+		alerts = append(alerts, "Update for "+cID+": Check student progress.")
+	}
+	// Check for recent announcements
+	var count int
+	config.PostgresDB.QueryRow("SELECT COUNT(*) FROM ANNOUNCEMENT WHERE faculty_id=$1 AND created_at > NOW() - INTERVAL '1 day'", userID).Scan(&count)
+	if count > 0 {
+		alerts = append(alerts, "You posted "+string(rune(count))+" announcements recently.")
 	}
 
-	// Fallback if no courses or just to show something
 	if len(alerts) == 0 {
-		alerts = append(alerts, "No immediate alerts for your classes.")
+		alerts = append(alerts, "No immediate alerts.")
 	}
-
 	c.JSON(http.StatusOK, gin.H{"alerts": alerts})
 }

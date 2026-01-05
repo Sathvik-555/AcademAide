@@ -1,7 +1,10 @@
 package services
 
 import (
+	"academ_aide/internal/config"
 	"bytes"
+	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,107 +40,135 @@ type WhatIfScenario struct {
 
 // Service Interface regarding AI capabilities
 type AIService struct {
-	// In the future, this would hold references to repositories
+	db *sql.DB
 }
 
 func NewAIService() *AIService {
-	return &AIService{}
+	return &AIService{
+		db: config.PostgresDB,
+	}
 }
 
 // Constants for Heuristic Rules
 const (
 	AttendanceThresholdCritical = 75.0
-	AttendanceThresholdWarning  = 80.0
+	AttendanceThresholdWarning  = 85.0 // Stricter for demo
 	GradeDropThreshold          = 5.0
 )
 
 // GetStudentInsights returns risks and suggestions for a student
 func (s *AIService) GetStudentInsights(studentID string) (*AIInsightsResponse, error) {
-	// MOCK DATA FETCHING
-	// In a real implementation, we would call s.repo.GetAttendance(studentID) etc.
-	// For MVP, we reconstruct the mock data used in the frontend prototype.
-
-	attendanceData := []struct {
-		Subject  string
-		Attended float64
-		Total    float64
-	}{
-		{"DBMS", 28, 40}, // 70%
-		{"OS", 35, 40},   // 87.5%
-		{"DAA", 32, 40},  // 80%
-	}
-
-	gradesData := []struct {
-		Subject  string
-		Current  float64 // Percentage equivalent
-		Previous float64
-	}{
-		{"DBMS", 65, 80}, // Big drop
-		{"OS", 85, 82},
-	}
-
-	// 1. Analyze Risks
 	var risks []StudentRisk
+	var suggestions []Suggestion
 
-	// Check Attendance
-	for _, sub := range attendanceData {
-		percentage := (sub.Attended / sub.Total) * 100
-		if percentage < AttendanceThresholdCritical {
+	// 1. Fetch Enrolled Courses & Grades from DB
+	rows, err := s.db.Query(`
+		SELECT c.title, e.grade, e.status, e.course_id
+		FROM ENROLLS_IN e
+		JOIN COURSE c ON e.course_id = c.course_id
+		WHERE e.student_id = $1
+	`, studentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var title, gradeStr, status, courseID string
+		var grade sql.NullString
+		if err := rows.Scan(&title, &grade, &status, &courseID); err != nil {
+			continue
+		}
+		if grade.Valid {
+			gradeStr = grade.String
+		}
+
+		// --- A. Grade Analysis (REAL) ---
+		// Map grade to risk
+		if status == "Enrolled" || status == "Completed" {
+			switch gradeStr {
+			case "F", "D", "E":
+				risks = append(risks, StudentRisk{
+					Type:     "Grades",
+					Severity: "High",
+					Message:  fmt.Sprintf("Critical performance (Grade: %s) in %s", gradeStr, title),
+					Subject:  title,
+				})
+				suggestions = append(suggestions, Suggestion{
+					Suggestion: fmt.Sprintf("Schedule remedial session for %s", title),
+					Reason:     "Current grade puts you at risk of failing or academic probation.",
+				})
+			case "C", "C+":
+				risks = append(risks, StudentRisk{
+					Type:     "Grades",
+					Severity: "Medium",
+					Message:  fmt.Sprintf("Average performance (Grade: %s) in %s", gradeStr, title),
+					Subject:  title,
+				})
+				suggestions = append(suggestions, Suggestion{
+					Suggestion: fmt.Sprintf("Review core concepts in %s", title),
+					Reason:     "Grade is average; improving understanding now can boost final score.",
+				})
+			}
+		}
+
+		// --- B. Attendance Analysis (SIMULATED / DETERMINISTIC) ---
+		// We simulate attendance based on a hash of (StudentID + CourseID) so it's consistent for the user but varies by course.
+		// Hash -> 0-100
+		h := sha256.New()
+		h.Write([]byte(studentID + courseID + "attendance_salt"))
+		sum := h.Sum(nil)
+		// Use first byte to determine rough percentage (50-100 range likely)
+		// To make it interesting:
+		// S1001 (Senior) -> usually good.
+		// Freshman -> maybe mixed.
+		// Let's just use the hash modulo 101.
+		// To ensure we have some "Good" and some "Bad", we map 0-255 to 40-100.
+		// val = 40 + (byte / 255) * 60
+		val := int(sum[0])
+		attendancePct := 60.0 + (float64(val)/255.0)*40.0 // Range 60% to 100%
+
+		// Override for specific Test Users to ensure we see specific UI states
+		if strings.Contains(studentID, "TEST_STRESSED") && (courseID == "CS102" || courseID == "CS103") {
+			attendancePct = 65.0 // Bad attendance
+		}
+		if strings.Contains(studentID, "TEST_FRESHMAN") && courseID == "CS101" {
+			attendancePct = 78.0 // Warning
+		}
+		if strings.Contains(studentID, "TEST_SENIOR") {
+			attendancePct = 92.0 + (float64(val)/255.0)*6.0 // 92-98%
+		}
+
+		if attendancePct < AttendanceThresholdCritical {
 			risks = append(risks, StudentRisk{
 				Type:     "Attendance",
 				Severity: "High",
-				Message:  fmt.Sprintf("Attendance below 75%% in %s", sub.Subject),
-				Subject:  sub.Subject,
+				Message:  fmt.Sprintf("Attendance CRITICAL (%.1f%%) in %s", attendancePct, title),
+				Subject:  title,
 			})
-		} else if percentage < AttendanceThresholdWarning {
+			suggestions = append(suggestions, Suggestion{
+				Suggestion: fmt.Sprintf("Meet %s instructor immediately", title),
+				Reason:     "Attendance is below 75%; you may be debarred from exams.",
+			})
+
+		} else if attendancePct < AttendanceThresholdWarning {
 			risks = append(risks, StudentRisk{
 				Type:     "Attendance",
 				Severity: "Medium",
-				Message:  fmt.Sprintf("Attendance risk in %s (Current: %.1f%%)", sub.Subject, percentage),
-				Subject:  sub.Subject,
+				Message:  fmt.Sprintf("Low Attendance (%.1f%%) in %s", attendancePct, title),
+				Subject:  title,
 			})
-		}
-	}
-
-	// Check Grades
-	for _, sub := range gradesData {
-		if sub.Previous-sub.Current > GradeDropThreshold {
-			risks = append(risks, StudentRisk{
-				Type:     "Grades",
-				Severity: "Medium",
-				Message:  fmt.Sprintf("Performance drop detected in %s", sub.Subject),
-				Subject:  sub.Subject,
-			})
-		}
-	}
-
-	// 2. Generate Suggestions
-	var suggestions []Suggestion
-	for _, r := range risks {
-		if r.Type == "Attendance" {
-			if r.Severity == "High" {
-				suggestions = append(suggestions, Suggestion{
-					Suggestion: fmt.Sprintf("Consider meeting the course instructor for %s", r.Subject),
-					Reason:     fmt.Sprintf("Attendance in %s is critical (<75%%). Immediate action prevents debarment.", r.Subject),
-				})
-			} else {
-				suggestions = append(suggestions, Suggestion{
-					Suggestion: fmt.Sprintf("Attend next 3 classes for %s", r.Subject),
-					Reason:     "Current attendance trend shows a potential drop below safe limits in upcoming weeks.",
-				})
-			}
-		} else if r.Type == "Grades" {
 			suggestions = append(suggestions, Suggestion{
-				Suggestion: fmt.Sprintf("Review recent topics in %s with a study group", r.Subject),
-				Reason:     fmt.Sprintf("Recent scores indicate a %s drop in performance compared to previous assessments.", r.Severity), // Severity is "Medium" usually
+				Suggestion: fmt.Sprintf("Attend next all classes for %s", title),
+				Reason:     "Attendance is borderline. Missing more classes will trigger critical status.",
 			})
 		}
 	}
 
-	if len(suggestions) == 0 {
+	if len(risks) == 0 {
 		suggestions = append(suggestions, Suggestion{
 			Suggestion: "Maintain current study schedule",
-			Reason:     "All metrics are within healthy ranges. Consistency is key.",
+			Reason:     "Your academic health is green! All grades and attendance metrics are satisfactory.",
 		})
 	}
 

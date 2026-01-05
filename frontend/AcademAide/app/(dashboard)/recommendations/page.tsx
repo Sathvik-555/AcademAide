@@ -1,63 +1,97 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
+import Cookies from "js-cookie"
+import { BookOpen, Video, FileText, Download, ExternalLink } from "lucide-react"
+
+interface Resource {
+    resource_id: number
+    title: string
+    description: string
+    type: string
+    course_id: string
+    link: string
+}
 
 export default function RecommendationsPage() {
+    const [resources, setResources] = useState<Resource[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        const fetchResources = async () => {
+            const token = Cookies.get("token")
+            try {
+                const res = await fetch("http://localhost:8080/student/resources", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                })
+                if (res.ok) {
+                    const data = await res.json()
+                    setResources(data || [])
+                }
+            } catch (err) {
+                console.error(err)
+            } finally {
+                setLoading(false)
+            }
+        }
+        fetchResources()
+    }, [])
+
+    const getIcon = (type: string) => {
+        switch (type.toLowerCase()) {
+            case 'video': return <Video className="h-4 w-4" />
+            case 'pdf': return <FileText className="h-4 w-4" />
+            default: return <BookOpen className="h-4 w-4" />
+        }
+    }
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-3xl font-bold tracking-tight">Recommendations</h1>
-                <p className="text-muted-foreground">Personalized for your academic growth</p>
+                <p className="text-muted-foreground">Curated materials for your enrolled courses</p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-start">
-                            <CardTitle>Advanced Database Systems</CardTitle>
-                            <div className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-semibold">Course</div>
-                        </div>
-                        <CardDescription>Based on your interest in DBMS</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">Explore NoSQL databases, distributed systems, and advanced indexing techniques. This elective complements your current DBMS coursework.</p>
-                    </CardContent>
-                    <CardFooter>
-                        <Button variant="outline" className="w-full">View Syllabus</Button>
-                    </CardFooter>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-start">
-                            <CardTitle>Machine Learning for Beginners</CardTitle>
-                            <div className="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-semibold">Course</div>
-                        </div>
-                        <CardDescription>Prerequisite for final year project</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">Start early with ML foundations. Taking this now will help you in your upcoming capstone project selection.</p>
-                    </CardContent>
-                    <CardFooter>
-                        <Button variant="outline" className="w-full">Enroll Now</Button>
-                    </CardFooter>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-start">
-                            <CardTitle>Study Plan for Finals</CardTitle>
-                            <div className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-semibold">Advice</div>
-                        </div>
-                        <CardDescription>Generated based on your schedule</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-muted-foreground">You have gaps on Wednesday. Utilize 11:00 AM - 1:00 PM for Computer Networks revision to improve your grade.</p>
-                    </CardContent>
-                    <CardFooter>
-                        <Button className="w-full">Add to Calendar</Button>
-                    </CardFooter>
-                </Card>
-            </div>
+            {loading ? (
+                <div className="flex items-center justify-center p-12">
+                    <div className="animate-pulse text-muted-foreground">Loading personalized resources...</div>
+                </div>
+            ) : resources.length === 0 ? (
+                <div className="text-center p-10 text-muted-foreground border-2 border-dashed rounded-lg">
+                    No active recommendations found for your current enrollment.
+                </div>
+            ) : (
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {resources.map((res) => (
+                        <Card key={res.resource_id} className="flex flex-col glass hover:shadow-lg transition-all hover:-translate-y-1">
+                            <CardHeader>
+                                <div className="flex justify-between items-start">
+                                    <div className="space-y-1">
+                                        <CardTitle className="text-lg leading-tight">{res.title}</CardTitle>
+                                        <div className="text-xs font-semibold text-violet-600 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-300 px-2 py-0.5 rounded w-fit">
+                                            {res.course_id}
+                                        </div>
+                                    </div>
+                                    <div className="text-muted-foreground p-2 bg-secondary/50 rounded-full">
+                                        {getIcon(res.type)}
+                                    </div>
+                                </div>
+                                <CardDescription className="capitalize">{res.type} Resource</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-1">
+                                <p className="text-sm text-muted-foreground line-clamp-3">{res.description}</p>
+                            </CardContent>
+                            <CardFooter>
+                                <Button className="w-full gap-2" variant="outline" onClick={() => window.open(res.link, '_blank')}>
+                                    <ExternalLink className="h-4 w-4" /> Access Material
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

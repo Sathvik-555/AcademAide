@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { BrainCircuit, Sparkles } from "lucide-react"
 import { fetchAIInsights, Risk, Suggestion } from "@/lib/ai-insights"
 import { RiskAlert } from "./RiskAlert"
-import { WhatIfSimulator } from "./WhatIfSimulator"
 import Cookies from "js-cookie"
 
 export function AIInsights() {
@@ -17,8 +16,8 @@ export function AIInsights() {
         const loadInsights = async () => {
             const studentId = Cookies.get("student_id") || "S1001" // Default for testing if cookie missing
             const data = await fetchAIInsights(studentId)
-            setRisks(data.risks)
-            setSuggestions(data.suggestions)
+            setRisks(data.risks || [])
+            setSuggestions(data.suggestions || [])
         }
         loadInsights()
     }, [])
@@ -36,7 +35,7 @@ export function AIInsights() {
                 </div>
             </CardHeader>
 
-            <CardContent className="grid gap-6 lg:grid-cols-2">
+            <CardContent className="grid gap-6">
                 <div className="space-y-4">
                     <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Analysis & Alerts</h3>
                     {risks.length === 0 ? (
@@ -60,10 +59,6 @@ export function AIInsights() {
                             )
                         })
                     )}
-                </div>
-
-                <div className="border-l pl-0 lg:pl-6 border-dashed border-gray-200 dark:border-gray-800">
-                    <WhatIfSimulator />
                 </div>
             </CardContent>
         </Card>

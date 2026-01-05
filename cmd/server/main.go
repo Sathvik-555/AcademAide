@@ -33,6 +33,8 @@ func main() {
 	{
 		studentGroup.GET("/profile", handlers.GetStudentProfile)
 		studentGroup.GET("/timetable", handlers.GetStudentTimetable)
+		studentGroup.GET("/resources", handlers.GetStudentResources)
+		studentGroup.GET("/announcements", handlers.GetAnnouncements)
 	}
 
 	chatGroup := r.Group("/chat")
@@ -79,6 +81,10 @@ func main() {
 		teacherGroup.GET("/class-health", teacherHandler.GetClassHealth)
 		teacherGroup.GET("/at-risk", teacherHandler.GetAtRiskStudents)
 		teacherGroup.GET("/alerts", teacherHandler.GetAlerts)
+		teacherGroup.GET("/courses", teacherHandler.GetMyCourses)
+		teacherGroup.GET("/students", teacherHandler.GetEnrolledStudents)
+		teacherGroup.GET("/student-details", teacherHandler.GetStudentDetails)
+		teacherGroup.POST("/announce", teacherHandler.PostAnnouncement)
 	}
 
 	// Start Server
