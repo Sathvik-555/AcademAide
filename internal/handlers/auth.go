@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"academ_aide/internal/config"
+	"academ_aide/internal/services"
 	"context"
+	"database/sql"
 	"net/http"
 	"os"
 	"time"
@@ -26,13 +28,17 @@ func LoginHandler(c *gin.Context) {
 
 	// Verify Student Exists in Postgres
 	var exists bool
-	err := config.PostgresDB.QueryRow("SELECT EXISTS(SELECT 1 FROM STUDENT WHERE student_id=$1)", req.StudentID).Scan(&exists)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB Error"})
-		return
-	}
-	if !exists {
+	var walletAddr sql.NullString
+	err := config.PostgresDB.QueryRow("SELECT EXISTS(SELECT 1 FROM STUDENT WHERE student_id=$1), wallet_address FROM STUDENT WHERE student_id=$1", req.StudentID).Scan(&exists, &walletAddr)
+	// If the above query is too complex for basic Scan with EXISTS, let's split or use a cleaner query.
+	// Actually, just selecting wallet_address implies existence if rows found.
+	err = config.PostgresDB.QueryRow("SELECT wallet_address FROM STUDENT WHERE student_id=$1", req.StudentID).Scan(&walletAddr)
+
+	if err == sql.ErrNoRows {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Student not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB Error"})
 		return
 	}
 
@@ -43,10 +49,38 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
+	finalWalletAddress := ""
+	if walletAddr.Valid && walletAddr.String != "" {
+		finalWalletAddress = walletAddr.String
+	} else {
+		// Generate New Wallet
+		privKeyHex, addr, err := services.GenerateWallet()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Wallet Generation Failed"})
+			return
+		}
+
+		// Encrypt Private Key with Password
+		encryptedKey, err := services.EncryptPrivateKey(privKeyHex, req.Password)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Wallet Encryption Failed"})
+			return
+		}
+
+		// Save to DB
+		_, err = config.PostgresDB.Exec("UPDATE STUDENT SET wallet_address=$1, encrypted_private_key=$2 WHERE student_id=$3", addr, encryptedKey, req.StudentID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save wallet"})
+			return
+		}
+		finalWalletAddress = addr
+	}
+
 	// Generate Real JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"student_id": req.StudentID,
-		"exp":        time.Now().Add(24 * time.Hour).Unix(),
+		"student_id":     req.StudentID,
+		"wallet_address": finalWalletAddress,
+		"exp":            time.Now().Add(24 * time.Hour).Unix(),
 	})
 
 	secret := os.Getenv("JWT_SECRET")
@@ -69,5 +103,9 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"token": tokenString, "student_id": req.StudentID})
+	c.JSON(http.StatusOK, gin.H{
+		"token":          tokenString,
+		"student_id":     req.StudentID,
+		"wallet_address": finalWalletAddress,
+	})
 }

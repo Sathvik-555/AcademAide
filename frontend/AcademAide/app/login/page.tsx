@@ -41,6 +41,7 @@ export default function LoginPage() {
             // Store token and student_id
             Cookies.set("token", data.token, { expires: 1 }) // Expires in 1 day
             Cookies.set("student_id", data.student_id, { expires: 1 })
+            Cookies.set("wallet_address", data.wallet_address || "", { expires: 1 })
 
             router.push("/dashboard")
             router.refresh()

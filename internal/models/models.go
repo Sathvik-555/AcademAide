@@ -12,9 +12,11 @@ type Student struct {
 	PhoneNo         string  `json:"phone_no"`
 	Semester        int     `json:"semester"`
 	YearOfJoining   int     `json:"year_of_joining"`
-	DeptID          string  `json:"dept_id"`
-	CoursesEnrolled int     `json:"courses_enrolled,omitempty"`
-	CGPA            float64 `json:"cgpa,omitempty"`
+	DeptID              string  `json:"dept_id"`
+	CoursesEnrolled     int     `json:"courses_enrolled,omitempty"`
+	CGPA                float64 `json:"cgpa,omitempty"`
+	WalletAddress       string  `json:"wallet_address,omitempty"`
+	EncryptedPrivateKey string  `json:"-"` // Never return to frontend
 }
 
 type ScheduleItem struct {

@@ -57,12 +57,22 @@ import {
     DialogClose
 } from "@/components/ui/Dialog"
 
+import { useState, useEffect } from "react"
+
 export function Sidebar() {
     const pathname = usePathname()
     const router = useRouter()
+    const [walletAddr, setWalletAddr] = useState("")
+
+    useEffect(() => {
+        const addr = Cookies.get("wallet_address")
+        if (addr) setWalletAddr(addr)
+    }, [])
 
     const handleLogout = () => {
         Cookies.remove("token")
+        Cookies.remove("student_id")
+        Cookies.remove("wallet_address")
         router.push("/login")
         router.refresh()
     }
@@ -96,7 +106,15 @@ export function Sidebar() {
                     ))}
                 </nav>
             </div>
-            <div className="border-t border-gray-200/50 dark:border-white/10 p-4">
+            <div className="border-t border-gray-200/50 dark:border-white/10 p-4 space-y-2">
+                {walletAddr && (
+                    <div className="px-2 py-2 mb-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
+                        <div className="text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1">Blockchain Identity</div>
+                        <div className="text-[10px] bg-white dark:bg-slate-950 p-1.5 rounded border border-indigo-200 dark:border-indigo-800 font-mono text-slate-600 dark:text-slate-400 truncate" title={walletAddr}>
+                            {walletAddr}
+                        </div>
+                    </div>
+                )}
                 <Dialog>
                     <DialogTrigger asChild>
                         <Button
