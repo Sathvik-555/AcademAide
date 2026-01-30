@@ -292,7 +292,7 @@ func GetAnnouncements(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var announcements []gin.H
+	announcements := make([]gin.H, 0)
 	for rows.Next() {
 		var content, courseTitle string
 		var createdAt time.Time
@@ -305,4 +305,41 @@ func GetAnnouncements(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, announcements)
+}
+
+func GetStudentCourses(c *gin.Context) {
+	rawID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	studentID := rawID.(string)
+
+	query := `
+		SELECT c.course_id, c.title
+		FROM ENROLLS_IN e
+		JOIN COURSE c ON e.course_id = c.course_id
+		WHERE e.student_id = $1 AND e.status = 'Enrolled'
+	`
+	rows, err := config.PostgresDB.Query(query, studentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type Course struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	var courses []Course
+	for rows.Next() {
+		var c Course
+		if err := rows.Scan(&c.ID, &c.Name); err != nil {
+			continue
+		}
+		courses = append(courses, c)
+	}
+
+	c.JSON(http.StatusOK, courses)
 }
