@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Loader2, BrainCircuit, CheckCircle, XCircle } from "lucide-react"
@@ -21,22 +21,40 @@ interface Quiz {
     questions: Question[]
 }
 
-const COURSES = [
-    { id: "CD252IA", name: "Database Management Systems" },
-    { id: "CS354TA", name: "Theory of Computation" },
-    { id: "IS353IA", name: "Artificial Intelligence & ML" },
-    { id: "XX355TBX", name: "Cloud Computing" },
-    { id: "HS251TA", name: "Economics & Management" },
-]
+
 
 export default function QuizzesPage() {
-    const [courseId, setCourseId] = useState(COURSES[0].id)
+    const [courses, setCourses] = useState<{ id: string, name: string }[]>([])
+    const [courseId, setCourseId] = useState("")
     const [unitId, setUnitId] = useState<number>(0) // 0 means All Units
+    const [numQuestions, setNumQuestions] = useState<number>(5)
     const [loading, setLoading] = useState(false)
     const [quiz, setQuiz] = useState<Quiz | null>(null)
     const [answers, setAnswers] = useState<Record<number, number>>({})
     const [submitted, setSubmitted] = useState(false)
     const [score, setScore] = useState(0)
+
+    useEffect(() => {
+        const fetchCourses = async () => {
+            const token = Cookies.get("token")
+            if (!token) return
+            try {
+                const res = await fetch("http://localhost:8080/student/courses", {
+                    headers: { "Authorization": `Bearer ${token}` }
+                })
+                if (res.ok) {
+                    const data = await res.json()
+                    setCourses(data)
+                    if (data.length > 0) {
+                        setCourseId(data[0].id)
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch courses", error)
+            }
+        }
+        fetchCourses()
+    }, [])
 
     const generateQuiz = async () => {
         setLoading(true)
@@ -54,7 +72,8 @@ export default function QuizzesPage() {
                 },
                 body: JSON.stringify({
                     course_id: courseId,
-                    unit: unitId // 0 for all, 1-5 for specific
+                    unit: unitId, // 0 for all, 1-5 for specific
+                    num_questions: numQuestions
                 })
             })
 
@@ -151,7 +170,7 @@ export default function QuizzesPage() {
                         onChange={(e) => setCourseId(e.target.value)}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm md:w-[300px]"
                     >
-                        {COURSES.map(c => (
+                        {courses.map(c => (
                             <option key={c.id} value={c.id}>{c.id} - {c.name}</option>
                         ))}
                     </select>
@@ -169,12 +188,23 @@ export default function QuizzesPage() {
                         <option value={5}>Unit 5</option>
                     </select>
 
+                    <select
+                        value={numQuestions}
+                        onChange={(e) => setNumQuestions(Number(e.target.value))}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm md:w-[150px]"
+                    >
+                        <option value={5}>5 Questions</option>
+                        <option value={10}>10 Questions</option>
+                        <option value={15}>15 Questions</option>
+                        <option value={20}>20 Questions</option>
+                    </select>
+
                     <Button onClick={generateQuiz} disabled={loading} className="gap-2 flex-1 md:flex-none">
                         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                         {loading ? "Generating..." : "Generate Quiz"}
                     </Button>
                 </CardContent>
-            </Card>
+            </Card >
 
             {quiz && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -300,7 +330,8 @@ export default function QuizzesPage() {
                         </div>
                     )}
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     )
 }
