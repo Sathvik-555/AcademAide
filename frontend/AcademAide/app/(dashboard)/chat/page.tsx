@@ -46,11 +46,26 @@ function ChatContent() {
         scrollToBottom()
     }, [messages])
 
+    const [userRole, setUserRole] = useState<string>("student")
+
+    useEffect(() => {
+        const role = Cookies.get("role")
+        if (role) setUserRole(role)
+        if (role === "teacher") {
+            setSelectedAgent("teacher")
+        }
+    }, [])
+
     const sendMessage = async (text: string) => {
         if (!text.trim() || isLoading) return
 
-        const studentId = Cookies.get("student_id")
-        if (!studentId) {
+        const role = Cookies.get("role") || "student"
+        let userId = Cookies.get("student_id")
+        if (role === "teacher") {
+            userId = Cookies.get("faculty_id")
+        }
+
+        if (!userId) {
             alert("Please login first")
             return
         }
@@ -80,7 +95,9 @@ function ChatContent() {
                     "Authorization": `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    student_id: studentId,
+                    student_id: role === "student" ? userId : undefined,
+                    faculty_id: role === "teacher" ? userId : undefined,
+                    role: role,
                     message: newMessage.content,
                     agent_id: selectedAgent
                 }),
@@ -160,7 +177,7 @@ function ChatContent() {
     return (
         <div className="flex flex-col h-[calc(100vh-8rem)]">
             <div className="flex justify-between items-center mb-2 px-1">
-                <AgentSelector selectedAgent={selectedAgent} onSelect={setSelectedAgent} />
+                <AgentSelector selectedAgent={selectedAgent} onSelect={setSelectedAgent} userRole={userRole} />
                 <Button
                     variant="ghost"
                     size="icon"
