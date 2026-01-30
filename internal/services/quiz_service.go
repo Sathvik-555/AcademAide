@@ -30,7 +30,7 @@ func NewQuizService() *QuizService {
 }
 
 // GenerateQuiz generates a quiz for a given course based on its syllabus
-func (s *QuizService) GenerateQuiz(courseID string, unit int) (*models.Quiz, error) {
+func (s *QuizService) GenerateQuiz(courseID string, unit int, numQuestions int) (*models.Quiz, error) {
 	// 1. Fetch Syllabus Topics
 	var rows *sql.Rows
 	var err error
@@ -98,7 +98,7 @@ func (s *QuizService) GenerateQuiz(courseID string, unit int) (*models.Quiz, err
 	}
 
 	prompt := fmt.Sprintf(`
-You are a professor. Generate a quiz with 5 multiple-choice questions for the course %s, %s.
+You are a professor. Generate a quiz with %d multiple-choice questions for the course %s, %s.
 
 CRITICAL INSTRUCTION:
 1. You MUST use ONLY the content provided below in "Context Materials" to generate the questions.
@@ -118,11 +118,11 @@ Return ONLY valid JSON in the following format, with no extra text:
       "text": "Question text here?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correct_option": 0,
-      "reference": "Exact_Source_File_Name.pdf"
+       "reference": "Exact_Source_File_Name.pdf"
     }
   ]
 }
-`, courseID, unitContext, contextText, topicStr)
+`, numQuestions, courseID, unitContext, contextText, topicStr)
 
 	jsonResp, err := s.callOllamaJSON(prompt)
 	if err != nil {
