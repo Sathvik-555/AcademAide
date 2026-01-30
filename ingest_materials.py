@@ -12,9 +12,10 @@ BASE_DIR = "./materials"
 
 # DB Connection - UPDATE THESE VALUES
 DB_HOST = "localhost"
+DB_PORT = "5435"
 DB_NAME = "academ_aide" # Or your actual DB name
 DB_USER = "postgres"
-DB_PASS = "sathvik555" # Update this!
+DB_PASS = "postgres" # Update this!
 
 # Model (Must match what you use in Go)
 # Using nomic-embed-text as per your previous setup, or llama3.2 depending on your preference
@@ -23,6 +24,7 @@ MODEL_NAME = "nomic-embed-text"
 def get_db_connection():
     conn = psycopg2.connect(
         host=DB_HOST,
+        port=DB_PORT,
         database=DB_NAME,
         user=DB_USER,
         password=DB_PASS
@@ -147,8 +149,8 @@ def process_course_materials():
                 
                 print(f"      -> Generated {len(chunks)} chunks. Inserting...")
 
-                for i, chunk in enumerate(chunks):
-                    content = chunk.page_content
+                    for i, chunk in enumerate(chunks):
+                    content = chunk.page_content.replace('\x00', '')
                     # Generate embedding for single chunk
                     vector = embeddings.embed_query(content)
                     
