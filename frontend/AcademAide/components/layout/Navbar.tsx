@@ -2,12 +2,20 @@
 
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
-import { Search, Bell } from "lucide-react"
+import { Search, Bell, PanelLeft } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 
-export function Navbar() {
+interface NavbarProps {
+    onToggleSidebar?: () => void;
+}
+
+export function Navbar({ onToggleSidebar }: NavbarProps) {
     return (
         <header className="flex h-14 items-center gap-4 border-b border-gray-200/50 bg-white/50 backdrop-blur-xl dark:bg-slate-900/50 dark:border-white/10 px-4 lg:h-[60px] lg:px-6">
+            <Button variant="ghost" size="icon" className="hidden md:flex" onClick={onToggleSidebar}>
+                <PanelLeft className="h-5 w-5" />
+                <span className="sr-only">Toggle Sidebar</span>
+            </Button>
             <div className="w-full flex-1">
                 <form onSubmit={(e) => {
                     e.preventDefault()
