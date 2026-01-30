@@ -35,6 +35,7 @@ func main() {
 		studentGroup.GET("/timetable", handlers.GetStudentTimetable)
 		studentGroup.GET("/resources", handlers.GetStudentResources)
 		studentGroup.GET("/announcements", handlers.GetAnnouncements)
+		studentGroup.GET("/courses", handlers.GetStudentCourses)
 	}
 
 	chatGroup := r.Group("/chat")
