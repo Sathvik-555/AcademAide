@@ -128,7 +128,7 @@ func (r *CourseRepository) SearchMaterials(ctx context.Context, embedding []floa
 			query = `
 				SELECT content_text, course_id, unit_no, 1 - (embedding <=> $1::vector) as score, source_file
 				FROM COURSE_MATERIAL_CHUNK
-				WHERE course_id = ANY($3) AND unit_no = $4
+				WHERE course_id = ANY($3::text[]) AND unit_no = $4
 				ORDER BY embedding <=> $1::vector ASC
 				LIMIT $2
 			`
@@ -138,7 +138,7 @@ func (r *CourseRepository) SearchMaterials(ctx context.Context, embedding []floa
 			query = `
 				SELECT content_text, course_id, unit_no, 1 - (embedding <=> $1::vector) as score, source_file
 				FROM COURSE_MATERIAL_CHUNK
-				WHERE course_id = ANY($3)
+				WHERE course_id = ANY($3::text[])
 				ORDER BY embedding <=> $1::vector ASC
 				LIMIT $2
 			`
