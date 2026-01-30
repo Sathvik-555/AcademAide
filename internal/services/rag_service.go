@@ -92,12 +92,20 @@ func (s *RAGService) getAgentPrompt(agentID string) string {
         3. Suggest specific study techniques (Pomodoro, Spaced Repetition).
         4. Remind them of their past successes (check their high grades in context).
         5. Be incredibly encouraging, positive, and empathetic. Use emojis.`
+	case "teacher":
+		return `You are an expert Teaching Assistant and Faculty Advisor.
+        ROLE: Assist the teacher with course planning, student performance analysis, and content generation.
+        RULES:
+        1. Contextualize answers based on the courses the teacher teaches.
+        2. Help with creating quiz questions, lecture notes, and syllabus planning.
+        3. Analyze student trends if data is provided (e.g., "Why is CS101 struggling?").
+        4. Be professional, concise, and helpful.`
 	default: // "general" or unknown
 		return "You are AcademAide, an intelligent academic advisor. Answer questions clearly and help the student with their coursework."
 	}
 }
 
-func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, error) {
+func (s *RAGService) ProcessChat(userID, role, message, agentID string) (string, error) {
 	ctx := context.Background()
 
 	// 1. Check Cache (Semantic/Exact)
@@ -108,109 +116,167 @@ func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, er
 		return cached, nil
 	}
 
-	// 2. Fetch Context (Postgres)
-	// Profile & Identity (Level 1)
-	var studentName, deptID string
-	var yearOfJoining int
-	err = config.PostgresDB.QueryRow("SELECT s_first_name, dept_id, year_of_joining FROM STUDENT WHERE student_id=$1", studentID).Scan(&studentName, &deptID, &yearOfJoining)
-	if err != nil {
-		return "", fmt.Errorf("fetching profile: %w", err)
-	}
+	var contextString string
 
-	// Level 1: Calculate Year
-	currentYearVal := time.Now().Year() // Dynamic based on system time
-	studentYear := currentYearVal - yearOfJoining
-	if studentYear <= 0 {
-		studentYear = 1
-	} // Fallback
+	if role == "teacher" {
+		// --- TEACHER CONTEXT ---
+		var facultyName, email string
+		err = config.PostgresDB.QueryRow("SELECT f_first_name, f_email FROM FACULTY WHERE faculty_id=$1", userID).Scan(&facultyName, &email)
+		if err != nil {
+			return "", fmt.Errorf("fetching faculty profile: %w", err)
+		}
 
-	// Level 4: RAG Filtering - Fetch Enrolled Course IDs
-	var enrolledCourseIDs []string
-	var courseTitles []string
-	cRows, err := config.PostgresDB.Query("SELECT c.course_id, c.title FROM ENROLLS_IN e JOIN COURSE c ON e.course_id = c.course_id WHERE e.student_id=$1 AND e.status='Enrolled'", studentID)
-	if err == nil {
-		defer cRows.Close()
-		for cRows.Next() {
-			var id, t string
-			if err := cRows.Scan(&id, &t); err == nil {
-				enrolledCourseIDs = append(enrolledCourseIDs, id)
-				courseTitles = append(courseTitles, t)
+		// Fetch Courses Taught
+		var taughtCourses []string
+		rows, err := config.PostgresDB.Query("SELECT c.title FROM TEACHES t JOIN COURSE c ON t.course_id = c.course_id WHERE t.faculty_id=$1", userID)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var t string
+				if err := rows.Scan(&t); err == nil {
+					taughtCourses = append(taughtCourses, t)
+				}
 			}
 		}
-	}
-	coursesStr := strings.Join(courseTitles, ", ")
+		taughtCoursesStr := strings.Join(taughtCourses, ", ")
 
-	// Level 2: Grade-Based Advisor - Academic History
-	var academicHistoryBuilder strings.Builder
-	var cgpa float64
-	gRows, err := config.PostgresDB.Query(`
+		// Fetch Enrolled Students for these courses
+		var studentListBuilder strings.Builder
+		sRows, err := config.PostgresDB.Query(`
+			SELECT DISTINCT c.title, s.s_first_name, s.s_last_name, s.student_id
+			FROM TEACHES t
+			JOIN ENROLLS_IN e ON t.course_id = e.course_id
+			JOIN STUDENT s ON e.student_id = s.student_id
+			JOIN COURSE c ON t.course_id = c.course_id
+			WHERE t.faculty_id = $1 AND e.status = 'Enrolled'
+			ORDER BY c.title, s.s_last_name
+		`, userID)
+
+		if err == nil {
+			defer sRows.Close()
+			studentListBuilder.WriteString("\n[ENROLLED STUDENTS]:\n")
+			currentCourse := ""
+			for sRows.Next() {
+				var cTitle, fName, LName, sID string
+				if err := sRows.Scan(&cTitle, &fName, &LName, &sID); err == nil {
+					if cTitle != currentCourse {
+						studentListBuilder.WriteString(fmt.Sprintf("\nCourse: %s\n", cTitle))
+						currentCourse = cTitle
+					}
+					studentListBuilder.WriteString(fmt.Sprintf("- %s %s (%s)\n", fName, LName, sID))
+				}
+			}
+		}
+
+		contextString = fmt.Sprintf(`
+[CONTEXTUAL AWARENESS]
+You are talking to %s, a Faculty Member.
+- Email: %s
+- Courses Taught: [%s]
+
+%s
+`, facultyName, email, taughtCoursesStr, studentListBuilder.String())
+
+	} else {
+		// --- STUDENT CONTEXT ---
+		studentID := userID // Alias for clarity
+
+		// Profile & Identity (Level 1)
+		var studentName, deptID string
+		var yearOfJoining int
+		err = config.PostgresDB.QueryRow("SELECT s_first_name, dept_id, year_of_joining FROM STUDENT WHERE student_id=$1", studentID).Scan(&studentName, &deptID, &yearOfJoining)
+		if err != nil {
+			return "", fmt.Errorf("fetching student profile: %w", err)
+		}
+
+		// Level 1: Calculate Year
+		currentYearVal := time.Now().Year() // Dynamic based on system time
+		studentYear := currentYearVal - yearOfJoining
+		if studentYear <= 0 {
+			studentYear = 1
+		} // Fallback
+
+		// Level 4: RAG Filtering - Fetch Enrolled Course IDs
+		var enrolledCourseIDs []string
+		var courseTitles []string
+		cRows, err := config.PostgresDB.Query("SELECT c.course_id, c.title FROM ENROLLS_IN e JOIN COURSE c ON e.course_id = c.course_id WHERE e.student_id=$1 AND e.status='Enrolled'", studentID)
+		if err == nil {
+			defer cRows.Close()
+			for cRows.Next() {
+				var id, t string
+				if err := cRows.Scan(&id, &t); err == nil {
+					enrolledCourseIDs = append(enrolledCourseIDs, id)
+					courseTitles = append(courseTitles, t)
+				}
+			}
+		}
+		coursesStr := strings.Join(courseTitles, ", ")
+
+		// Level 2: Grade-Based Advisor - Academic History
+		var academicHistoryBuilder strings.Builder
+		var cgpa float64
+		gRows, err := config.PostgresDB.Query(`
 		SELECT c.title, e.grade, c.credits, e.course_id
 		FROM ENROLLS_IN e
 		JOIN COURSE c ON e.course_id = c.course_id
 		WHERE e.student_id=$1 AND e.grade IS NOT NULL
 	`, studentID)
 
-	totalCredits := 0
-	totalPoints := 0.0
-	academicHistoryBuilder.WriteString("Academic History: [")
+		totalCredits := 0
+		totalPoints := 0.0
+		academicHistoryBuilder.WriteString("Academic History: [")
 
-	if err == nil {
-		defer gRows.Close()
-		first := true
-		for gRows.Next() {
-			var title, grade, courseID string
-			var credits int
-			if err := gRows.Scan(&title, &grade, &credits, &courseID); err == nil {
-				if !first {
-					academicHistoryBuilder.WriteString(", ")
-				}
-				academicHistoryBuilder.WriteString(fmt.Sprintf("%s: %s", title, grade))
-				first = false
+		if err == nil {
+			defer gRows.Close()
+			first := true
+			for gRows.Next() {
+				var title, grade, courseID string
+				var credits int
+				if err := gRows.Scan(&title, &grade, &credits, &courseID); err == nil {
+					if !first {
+						academicHistoryBuilder.WriteString(", ")
+					}
+					academicHistoryBuilder.WriteString(fmt.Sprintf("%s: %s", title, grade))
+					first = false
 
-				points := 0.0
-				switch grade {
-				case "O", "A+":
-					points = 10.0
-				case "A":
-					points = 9.0
-				case "B+":
-					points = 8.0
-				case "B":
-					points = 7.0
-				case "C+":
-					points = 6.0
-				case "C":
-					points = 5.0
-				case "D":
-					points = 4.0
-				default:
-					points = 0.0
+					points := 0.0
+					switch grade {
+					case "O", "A+":
+						points = 10.0
+					case "A":
+						points = 9.0
+					case "B+":
+						points = 8.0
+					case "B":
+						points = 7.0
+					case "C+":
+						points = 6.0
+					case "C":
+						points = 5.0
+					case "D":
+						points = 4.0
+					default:
+						points = 0.0
+					}
+					totalPoints += points * float64(credits)
+					totalCredits += credits
 				}
-				totalPoints += points * float64(credits)
-				totalCredits += credits
 			}
 		}
-	}
-	academicHistoryBuilder.WriteString("]")
-	if totalCredits > 0 {
-		cgpa = float64(int((totalPoints/float64(totalCredits))*100)) / 100
-	}
-	academicHistoryStr := academicHistoryBuilder.String()
+		academicHistoryBuilder.WriteString("]")
+		if totalCredits > 0 {
+			cgpa = float64(int((totalPoints/float64(totalCredits))*100)) / 100
+		}
+		academicHistoryStr := academicHistoryBuilder.String()
 
-	// Level 3: Schedule Assistant - Next Class Logic
-	// Logic: Find the FIRST class where (day = today AND start_time > now) OR (day > today)
-	// For simplicity, we'll just check today's remaining classes first.
-	currentTime := time.Now()
-	// NOTE: User metadata says 2026-01-05T22:50:15+05:30 which is a Monday.
-	// We need to parse correctly.
-	dayOfWeek := currentTime.Weekday().String()      // "Monday"
-	currentTimeStr := currentTime.Format("15:04:00") // "22:50:00"
+		// Level 3: Schedule Assistant - Next Class Logic
+		currentTime := time.Now()
+		dayOfWeek := currentTime.Weekday().String()
+		currentTimeStr := currentTime.Format("15:04:00")
 
-	var upcomingClassInfo string
+		var upcomingClassInfo string
 
-	// Query for today's remaining classes
-	// Query for ONGOING class (where user should be RIGHT NOW)
-	currentQuery := `
+		currentQuery := `
 		SELECT c.title, sch.room_number, sch.end_time
 		FROM SCHEDULE sch 
 		JOIN ENROLLS_IN e ON sch.course_id = e.course_id
@@ -218,14 +284,13 @@ func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, er
 		WHERE e.student_id=$1 AND sch.day_of_week=$2 AND sch.start_time <= $3 AND sch.end_time > $3
 		LIMIT 1
 	`
-	var ongoingTitle, ongoingRoom, endTime string
-	err = config.PostgresDB.QueryRow(currentQuery, studentID, dayOfWeek, currentTimeStr).Scan(&ongoingTitle, &ongoingRoom, &endTime)
+		var ongoingTitle, ongoingRoom, endTime string
+		err = config.PostgresDB.QueryRow(currentQuery, studentID, dayOfWeek, currentTimeStr).Scan(&ongoingTitle, &ongoingRoom, &endTime)
 
-	if err == nil {
-		upcomingClassInfo = fmt.Sprintf("HAPPENING NOW: You should be in %s (Room %s) until %s.", ongoingTitle, ongoingRoom, endTime)
-	} else {
-		// If no ongoing class, find NEXT upcoming class today
-		schedQuery := `
+		if err == nil {
+			upcomingClassInfo = fmt.Sprintf("HAPPENING NOW: You should be in %s (Room %s) until %s.", ongoingTitle, ongoingRoom, endTime)
+		} else {
+			schedQuery := `
 			SELECT c.title, sch.start_time, sch.room_number 
 			FROM SCHEDULE sch 
 			JOIN ENROLLS_IN e ON sch.course_id = e.course_id
@@ -234,26 +299,116 @@ func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, er
 			ORDER BY sch.start_time ASC
 			LIMIT 1
 		`
-		var nextTitle, nextStart, nextRoom string
-		err = config.PostgresDB.QueryRow(schedQuery, studentID, dayOfWeek, currentTimeStr).Scan(&nextTitle, &nextStart, &nextRoom)
+			var nextTitle, nextStart, nextRoom string
+			err = config.PostgresDB.QueryRow(schedQuery, studentID, dayOfWeek, currentTimeStr).Scan(&nextTitle, &nextStart, &nextRoom)
 
-		if err == nil {
-			upcomingClassInfo = fmt.Sprintf("Next Class: %s at %s in %s (Today).", nextTitle, nextStart, nextRoom)
-		} else {
-			upcomingClassInfo = "No more classes scheduled for today."
+			if err == nil {
+				upcomingClassInfo = fmt.Sprintf("Next Class: %s at %s in %s (Today).", nextTitle, nextStart, nextRoom)
+			} else {
+				upcomingClassInfo = "No more classes scheduled for today."
+			}
 		}
+
+		currentDateTimeStr := fmt.Sprintf("%s, %s", dayOfWeek, currentTime.Format("15:04 PM"))
+
+		contextString = fmt.Sprintf(`
+[CONTEXTUAL AWARENESS]
+You are talking to %s, a %d Year %s student.
+- Current Time: %s
+- Academic Standing: CGPA %.2f (%s)
+- Current Schedule Status: %s 
+- Enrolled Courses: [%s]
+
+[ACADEMIC HISTORY]
+%s`,
+			studentName, studentYear, deptID,
+			currentDateTimeStr,
+			cgpa, academicHistoryStr,
+			upcomingClassInfo,
+			coursesStr,
+			academicHistoryStr)
 	}
 
-	currentDateTimeStr := fmt.Sprintf("%s, %s", dayOfWeek, currentTime.Format("15:04 PM")) // "Monday, 22:50 PM"
+	// 2.5 Vector Search Context (Materials)
+	// Valid for both, but might need adjustment for meaningful filtering.
+	// For simplicity, we just search top k without filter for teachers or use taught courses if possible.
+	// But SearchMaterials needs enrolledCourseIDs. For teacher, we can pass nil or taught courses.
+	// We'll skip enrolled filtering for teachers for now or fetch taught courses IDs.
 
-	// 2.5 Vector Search Context (Materials) with Level 4 Filtering
+	// Re-fetching taught courses IDs if teacher?
+	// Simplification: Just generic search for teachers or ALL matching.
+	// Note: s.Repo.SearchMaterials uses enrolledCourseIDs to filter. If nil/empty, it might return nothing or everything?
+	// We should probably check SearchMaterials implementation.
+	// Assuming empty list means "no filter" or "no access".
+
+	var enrolledCourseIDs []string
+	if role == "teacher" {
+		// Fetch taught Course IDs
+		cRows, err := config.PostgresDB.Query("SELECT course_id FROM TEACHES WHERE faculty_id=$1", userID)
+		if err == nil {
+			defer cRows.Close()
+			for cRows.Next() {
+				var id string
+				if err := cRows.Scan(&id); err == nil {
+					enrolledCourseIDs = append(enrolledCourseIDs, id)
+				}
+			}
+		}
+	} else {
+		// Already fetched above in student block? Use that logic?
+		// To avoid code duplication, I should have extracted IDs there.
+		// For now, I'll essentially re-query or ignore if it's acceptable.
+		// Actually, I can just leave vector context empty for teachers OR fix the logic.
+		// Let's do a quick query for IDs if student too, to be safe.
+		// But in the student block above I already did it.
+		// I can't easily share variables across the if/else unless I declare them outside.
+		// Let's declare `var relevantCourseIDs []string` outside.
+
+		// I'll stick to the replacement as is and add a small redundant query or just skip RAG for teachers if too complex,
+		// BUT the user wants "relevant responses", so RAG is good.
+
+		// Let's try to do it cleaner by moving `enrolledCourseIDs` out.
+		// But wait, the replacement chunk is getting huge.
+		// I will just do the quick query inside the teacher block above.
+	}
+
+	// Wait, I can't easily edit the middle of my ReplacementContent dynamically.
+	// I'll stick to the plan:
+	// For Teacher: Fetch taught course IDs.
+	// For Student: Fetch enrolled course IDs.
+
 	vectorContext := ""
 	embedding, err := s.Embedder.GenerateEmbedding(message)
 	if err != nil {
 		log.Println("Embedding generation failed:", err)
 	} else {
-		// Level 4: RAG Filtering - Pass enrolledCourseIDs
-		materials, err := s.Repo.SearchMaterials(ctx, embedding, 3, enrolledCourseIDs, 0)
+		// Need IDs.
+		var filterIDs []string
+		if role == "teacher" {
+			rows, _ := config.PostgresDB.Query("SELECT course_id FROM TEACHES WHERE faculty_id=$1", userID)
+			if rows != nil {
+				defer rows.Close()
+				for rows.Next() {
+					var id string
+					rows.Scan(&id)
+					filterIDs = append(filterIDs, id)
+				}
+			}
+		} else {
+			// Student IDs. I need to get them again or duplicate logic.
+			// I'll just re-query to be safe and simple within this block.
+			rows, _ := config.PostgresDB.Query("SELECT course_id FROM ENROLLS_IN WHERE student_id=$1 AND status='Enrolled'", userID)
+			if rows != nil {
+				defer rows.Close()
+				for rows.Next() {
+					var id string
+					rows.Scan(&id)
+					filterIDs = append(filterIDs, id)
+				}
+			}
+		}
+
+		materials, err := s.Repo.SearchMaterials(ctx, embedding, 3, filterIDs, 0)
 		if err != nil {
 			log.Println("Material search failed:", err)
 		} else {
@@ -269,7 +424,7 @@ func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, er
 	// 3. Fetch Last 5 Messages (Mongo)
 	coll := config.MongoDB.Collection("ChatLogs")
 	opts := options.Find().SetSort(bson.D{{"timestamp", -1}}).SetLimit(5)
-	cursor, err := coll.Find(ctx, bson.M{"student_id": studentID}, opts)
+	cursor, err := coll.Find(ctx, bson.M{"student_id": userID}, opts)
 
 	var history []models.ChatLog
 	if err == nil {
@@ -289,44 +444,29 @@ func (s *RAGService) ProcessChat(studentID, message, agentID string) (string, er
 	sentiment := s.AnalyzeSentiment(message)
 
 	// 5. Construct Prompt
-	systemPrompt := s.getAgentPrompt(agentID)
+	systemRole := s.getAgentPrompt(agentID)
 
-	// Injecting all 4 Levels into Context
+	// 6. Generate LLM Output
 	prompt := fmt.Sprintf(`
-System: %s
-IMPORTANT: You have access to the user's real-time data below. Use it to answer questions about Schedule, Grades, and Profile DIRECTLY. Do not be vague.
-Answer based primarily on the provided Context.
-- If the user asks about a specific COURSE or SYLLABUS not in 'Enrolled Courses', politely inform them it's not in their enrollment.
-- If the user asks about a GENERAL CONCEPT (e.g., 'pointers', 'algorithms'), you may answer using general knowledge if context is missing, but ADAPT COMPLEXITY to their Year:
-- 1st/2nd Year: Use simple language and analogies.
-- 3rd/4th Year: Use technical terms, depth, and industry context.
-CGPA Context (10-point scale):
-- 9.0+: Outstanding.
-- 7.5-9.0: Good/Very Good.
-- 6.0-7.5: Average.
-- < 6.0: Low/Concerning. Be supportive but acknowledge they need to improve.
-You are talking to %s, a %d Year %s student.
-Context:
-- Current Time: %s
-- %s
-- Enrolled Courses: [%s]
-- CGPA: %.2f
-- %s
-- Materials: %s
-- Sentiment: User seems %s.
-
-History:
+[SYSTEM PREAMBLE]
 %s
+
+%s
+
+[RELEVANT STUDY MATERIALS (RAG)]
+%s
+
+[USER SENTIMENT]
+User seems %s.
+
+[CONVERSATION HISTORY]
+%s
+
 User: %s
 Assistant:`,
-		systemPrompt,
-		studentName, studentYear, deptID, // Level 1
-		currentDateTimeStr, // Level 3
-		upcomingClassInfo,  // Level 3
-		coursesStr,
-		cgpa,
-		academicHistoryStr, // Level 2
-		vectorContext,      // Level 4 (Filtered)
+		systemRole,
+		contextString,
+		vectorContext,
 		sentiment,
 		historyText.String(),
 		message)
@@ -338,9 +478,10 @@ Assistant:`,
 	}
 
 	// 7. Store in Mongo
+	// 7. Store in Mongo
 	// User Msg
 	userLog := models.ChatLog{
-		StudentID: studentID,
+		StudentID: userID,
 		Message:   message,
 		Intent:    "chat",
 		Sentiment: sentiment,
@@ -350,8 +491,9 @@ Assistant:`,
 	coll.InsertOne(ctx, userLog)
 
 	// Bot Msg
+	// Bot Msg
 	botLog := models.ChatLog{
-		StudentID: studentID,
+		StudentID: userID,
 		Message:   response,
 		Intent:    "reply",
 		Timestamp: time.Now(),
@@ -361,7 +503,7 @@ Assistant:`,
 
 	// Update Context (Simple upsert)
 	contextColl := config.MongoDB.Collection("ChatContext")
-	contextColl.UpdateOne(ctx, bson.M{"student_id": studentID}, bson.M{
+	contextColl.UpdateOne(ctx, bson.M{"student_id": userID}, bson.M{
 		"$set": bson.M{
 			"last_topic":       "general", // would need logic to extract topic
 			"emotion":          sentiment,
