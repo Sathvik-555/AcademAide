@@ -1,14 +1,11 @@
 "use client"
 
-import { Bot, Brain, Code, BookOpen, ListTodo, Zap, LucideIcon } from "lucide-react"
+import { Bot, Brain, Code, BookOpen, ListTodo, Zap, LucideIcon, GraduationCap } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type AgentType = "general" | "socratic" | "code_reviewer" | "research" | "exam" | "motivational"
+export type AgentType = "general" | "socratic" | "code_reviewer" | "research" | "exam" | "motivational" | "teacher"
 
-interface AgentSelectorProps {
-    selectedAgent: AgentType
-    onSelect: (agent: AgentType) => void
-}
+
 
 interface AgentOption {
     id: AgentType
@@ -61,12 +58,33 @@ const agents: AgentOption[] = [
         description: "Motivates & encourages",
         color: "text-yellow-500 bg-yellow-50 dark:bg-yellow-950/30"
     },
+    {
+        id: "teacher",
+        label: "Faculty Assistant",
+        icon: GraduationCap,
+        description: "Assistance for teachers",
+        color: "text-pink-500 bg-pink-50 dark:bg-pink-950/30"
+    },
 ]
 
-export function AgentSelector({ selectedAgent, onSelect }: AgentSelectorProps) {
+export interface AgentSelectorProps {
+    selectedAgent: AgentType
+    onSelect: (agent: AgentType) => void
+    userRole?: string
+}
+
+export function AgentSelector({ selectedAgent, onSelect, userRole = "student" }: AgentSelectorProps) {
+    const filteredAgents = agents.filter(agent => {
+        if (userRole === "teacher") {
+            return agent.id === "teacher"
+        } else {
+            return agent.id !== "teacher"
+        }
+    })
+
     return (
         <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
-            {agents.map((agent) => (
+            {filteredAgents.map((agent) => (
                 <button
                     key={agent.id}
                     onClick={() => onSelect(agent.id)}
