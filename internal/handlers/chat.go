@@ -9,6 +9,8 @@ import (
 
 type ChatRequest struct {
 	StudentID string `json:"student_id"`
+	FacultyID string `json:"faculty_id"`
+	Role      string `json:"role"` // "student" or "teacher"
 	Message   string `json:"message"`
 	AgentID   string `json:"agent_id"` // Optional, defaults to "general" if empty
 }
@@ -21,16 +23,26 @@ func ChatHandler(c *gin.Context) {
 	}
 
 	rag := services.NewRAGService()
+
+	// Determine UserID and Role defaulting
+	userID := req.StudentID
+	role := "student"
+	if req.Role == "teacher" {
+		userID = req.FacultyID
+		role = "teacher"
+	}
+
 	// If AgentID is missing, it will default to "general" in getAgentPrompt
-	response, err := rag.ProcessChat(req.StudentID, req.Message, req.AgentID)
+	response, err := rag.ProcessChat(userID, role, req.Message, req.AgentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "AI Processing Failed"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"response":   response,
-		"student_id": req.StudentID,
+		"response": response,
+		"user_id":  userID,
+		"role":     role,
 	})
 }
 
