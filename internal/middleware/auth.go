@@ -57,7 +57,7 @@ func AuthMiddleware() gin.HandlerFunc {
 				c.Set("user_id", studentID)
 				c.Set("role", "student")
 			}
-			
+
 			// Extract Role directly
 			if role, ok := claims["role"].(string); ok {
 				c.Set("role", role)
@@ -68,10 +68,6 @@ func AuthMiddleware() gin.HandlerFunc {
 				}
 			}
 
-			// Extract Wallet (Optional)
-			if wallet, ok := claims["wallet_address"].(string); ok {
-				c.Set("wallet_address", wallet)
-			}
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 			c.Abort()

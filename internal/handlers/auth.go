@@ -2,9 +2,8 @@ package handlers
 
 import (
 	"academ_aide/internal/config"
-	"academ_aide/internal/services"
+
 	"context"
-	"database/sql"
 	"net/http"
 	"os"
 	"time"
@@ -15,9 +14,9 @@ import (
 
 // Simple Login - In production use proper Password Hashing
 type LoginRequest struct {
-	ID       string `json:"id"`       // Unified ID field
+	ID       string `json:"id"` // Unified ID field
 	Password string `json:"password"`
-	Role     string `json:"role"`     // "student" or "teacher"
+	Role     string `json:"role"` // "student" or "teacher"
 }
 
 func LoginHandler(c *gin.Context) {
@@ -33,49 +32,17 @@ func LoginHandler(c *gin.Context) {
 	}
 
 	var exists bool
-	var finalWalletAddress string
 
 	if req.Role == "student" {
 		// Verify Student Exists
-		var walletAddr sql.NullString
-		err := config.PostgresDB.QueryRow("SELECT wallet_address FROM STUDENT WHERE student_id=$1", req.ID).Scan(&walletAddr)
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Student not found"})
-			return
-		} else if err != nil {
+		err := config.PostgresDB.QueryRow("SELECT EXISTS(SELECT 1 FROM STUDENT WHERE student_id=$1)", req.ID).Scan(&exists)
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "DB Error"})
 			return
 		}
-
-		// Wallet Logic (Student Only)
-		if walletAddr.Valid && walletAddr.String != "" {
-			finalWalletAddress = walletAddr.String
-		} else {
-			// Mock Password Check (Simplification)
-			if req.Password == "" {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Password required"})
-				return
-			}
-			
-			// Generate New Wallet
-			privKeyHex, addr, err := services.GenerateWallet()
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Wallet Generation Failed"})
-				return
-			}
-			// Encrypt Private Key
-			encryptedKey, err := services.EncryptPrivateKey(privKeyHex, req.Password)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Wallet Encryption Failed"})
-				return
-			}
-			// Save to DB
-			_, err = config.PostgresDB.Exec("UPDATE STUDENT SET wallet_address=$1, encrypted_private_key=$2 WHERE student_id=$3", addr, encryptedKey, req.ID)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save wallet"})
-				return
-			}
-			finalWalletAddress = addr
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Student not found"})
+			return
 		}
 	} else if req.Role == "teacher" {
 		// Verify Faculty Exists
@@ -106,7 +73,7 @@ func LoginHandler(c *gin.Context) {
 
 	// Add wallet to claims only if student
 	if req.Role == "student" {
-		claims["wallet_address"] = finalWalletAddress
+
 		claims["student_id"] = req.ID // Backwards compatibility if needed
 	} else {
 		claims["faculty_id"] = req.ID
@@ -136,9 +103,6 @@ func LoginHandler(c *gin.Context) {
 		"token":   tokenString,
 		"user_id": req.ID,
 		"role":    req.Role,
-	}
-	if req.Role == "student" {
-		response["wallet_address"] = finalWalletAddress
 	}
 
 	c.JSON(http.StatusOK, response)

@@ -59,7 +59,7 @@ def init_db():
         files = [
             "database/schema.sql",
             "database/rag_setup.sql",
-            "database/01_add_wallet_auth.sql",
+            "database/02_remove_wallet_auth.sql",
             "database/insert_real_data.sql"
         ]
         

@@ -6,39 +6,6 @@ import { cn } from "@/lib/utils"
 import { LayoutDashboard, MessageSquare, Calendar, BookOpen, Users, Settings, LogOut, BrainCircuit } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 
-const sidebarItems = [
-    {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-    },
-    {
-        title: "Chat Assistant",
-        href: "/chat",
-        icon: MessageSquare,
-    },
-    {
-        title: "Timetable",
-        href: "/timetable",
-        icon: Calendar,
-    },
-    {
-        title: "AI Quizzes",
-        href: "/quizzes",
-        icon: BrainCircuit,
-    },
-    {
-        title: "Recommendations",
-        href: "/recommendations",
-        icon: BookOpen,
-    },
-    {
-        title: "Profile",
-        href: "/profile",
-        icon: Users,
-    },
-]
-
 import { useRouter } from "next/navigation"
 import Cookies from "js-cookie"
 import {
@@ -57,17 +24,70 @@ import { useState, useEffect } from "react"
 export function Sidebar() {
     const pathname = usePathname()
     const router = useRouter()
-    const [walletAddr, setWalletAddr] = useState("")
+    const [role, setRole] = useState("student")
 
     useEffect(() => {
-        const addr = Cookies.get("wallet_address")
-        if (addr) setWalletAddr(addr)
+        const r = Cookies.get("role")
+        if (r) setRole(r)
     }, [])
+
+    const dashboardPath = role === "teacher" ? "/teacher-dashboard" : "/dashboard"
+
+    const items = [
+        {
+            title: "Dashboard",
+            href: dashboardPath,
+            icon: LayoutDashboard,
+        },
+        {
+            title: "Chat Assistant",
+            href: "/chat",
+            icon: MessageSquare,
+        },
+        // Show student specific items only if student
+        ...(role === "student" ? [
+            {
+                title: "Timetable",
+                href: "/timetable",
+                icon: Calendar,
+            },
+            {
+                title: "AI Quizzes",
+                href: "/quizzes",
+                icon: BrainCircuit,
+            },
+            {
+                title: "Recommendations",
+                href: "/recommendations",
+                icon: BookOpen,
+            },
+            {
+                title: "Profile",
+                href: "/profile",
+                icon: Users,
+            },
+        ] : []),
+        // Add teacher specific items if needed, for now just basic nav
+        ...(role === "teacher" ? [
+            {
+                title: "My Courses",
+                href: "/teacher/courses", // Assuming these exist or will exist
+                icon: BookOpen,
+            },
+            {
+                title: "Students",
+                href: "/teacher/students",
+                icon: Users,
+            },
+        ] : [])
+    ]
 
     const handleLogout = () => {
         Cookies.remove("token")
         Cookies.remove("student_id")
-        Cookies.remove("wallet_address")
+        Cookies.remove("faculty_id")
+        Cookies.remove("role")
+
         router.push("/login")
         router.refresh()
     }
@@ -75,7 +95,7 @@ export function Sidebar() {
     return (
         <div className="flex h-full w-64 flex-col border-r bg-white/50 backdrop-blur-xl dark:bg-slate-950 dark:border-white/10 text-card-foreground">
             <div className="flex h-14 items-center border-b border-gray-200/50 dark:border-white/10 px-4">
-                <Link href="/dashboard" className="flex items-center gap-2 font-semibold tracking-tight">
+                <Link href={dashboardPath} className="flex items-center gap-2 font-semibold tracking-tight">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <BookOpen className="h-5 w-5" />
                     </div>
@@ -84,7 +104,7 @@ export function Sidebar() {
             </div>
             <div className="flex-1 overflow-auto py-4">
                 <nav className="grid items-start px-2 text-sm font-medium lg:px-4 space-y-1">
-                    {sidebarItems.map((item) => (
+                    {items.map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}
@@ -102,14 +122,7 @@ export function Sidebar() {
                 </nav>
             </div>
             <div className="border-t border-gray-200/50 dark:border-white/10 p-4 space-y-2">
-                {walletAddr && (
-                    <div className="px-2 py-2 mb-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
-                        <div className="text-xs font-medium text-indigo-600 dark:text-indigo-400 mb-1">Blockchain Identity</div>
-                        <div className="text-[10px] bg-white dark:bg-slate-950 p-1.5 rounded border border-indigo-200 dark:border-indigo-800 font-mono text-slate-600 dark:text-slate-400 truncate" title={walletAddr}>
-                            {walletAddr}
-                        </div>
-                    </div>
-                )}
+
                 <Dialog>
                     <DialogTrigger asChild>
                         <Button

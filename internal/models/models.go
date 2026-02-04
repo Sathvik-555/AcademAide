@@ -5,20 +5,19 @@ import "time"
 // PostgreSQL Entities
 
 type Student struct {
-	StudentID           string  `json:"student_id"`
-	FirstName           string  `json:"first_name"`
-	LastName            string  `json:"last_name"`
-	Email               string  `json:"email"`
-	PhoneNo             string  `json:"phone_no"`
-	Semester            int     `json:"semester"`
-	YearOfJoining       int     `json:"year_of_joining"`
-	DeptID              string  `json:"dept_id"`
-	CoursesEnrolled     int     `json:"courses_enrolled,omitempty"`
-	CGPA                float64 `json:"cgpa,omitempty"`
-	WalletAddress       string  `json:"wallet_address,omitempty"`
-	EncryptedPrivateKey string  `json:"-"` // Never return to frontend
-	NextClass           string  `json:"next_class,omitempty"`
-	NextClassTime       string  `json:"next_class_time,omitempty"`
+	StudentID       string  `json:"student_id"`
+	FirstName       string  `json:"first_name"`
+	LastName        string  `json:"last_name"`
+	Email           string  `json:"email"`
+	PhoneNo         string  `json:"phone_no"`
+	Semester        int     `json:"semester"`
+	YearOfJoining   int     `json:"year_of_joining"`
+	DeptID          string  `json:"dept_id"`
+	CoursesEnrolled int     `json:"courses_enrolled,omitempty"`
+	CGPA            float64 `json:"cgpa,omitempty"`
+
+	NextClass     string `json:"next_class,omitempty"`
+	NextClassTime string `json:"next_class_time,omitempty"`
 }
 
 type ScheduleItem struct {
@@ -29,22 +28,6 @@ type ScheduleItem struct {
 	StartTime   string `json:"start_time"` // Returning as string for JSON simplicity
 	EndTime     string `json:"end_time"`
 	RoomNumber  string `json:"room_number"`
-}
-
-type StudyGroup struct {
-	GroupID     int       `json:"group_id"`
-	CourseID    string    `json:"course_id"`
-	GroupName   string    `json:"group_name"`
-	Description string    `json:"description"`
-	CreatedBy   string    `json:"created_by"`
-	CreatedAt   time.Time `json:"created_at"`
-	MemberCount int       `json:"member_count,omitempty"`
-}
-
-type GroupMember struct {
-	GroupID   int       `json:"group_id"`
-	StudentID string    `json:"student_id"`
-	JoinedAt  time.Time `json:"joined_at"`
 }
 
 type Resource struct {

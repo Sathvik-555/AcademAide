@@ -49,7 +49,7 @@ export default function LoginPage() {
 
             if (role === "student") {
                 Cookies.set("student_id", data.user_id, { expires: 1 })
-                Cookies.set("wallet_address", data.wallet_address || "", { expires: 1 })
+
                 router.push("/dashboard")
             } else {
                 Cookies.set("faculty_id", data.user_id, { expires: 1 })

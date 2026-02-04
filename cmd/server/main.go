@@ -53,16 +53,6 @@ func main() {
 	// Feature: AI Quizzes
 	r.POST("/quiz/generate", middleware.AuthMiddleware(), handlers.GenerateQuiz)
 
-	// Feature: and Study Groups
-	groupRoutes := r.Group("/groups")
-	groupRoutes.Use(middleware.AuthMiddleware())
-	{
-		groupRoutes.GET("/peers", handlers.FindPeers)
-		groupRoutes.POST("/create", handlers.CreateGroup)
-		groupRoutes.GET("/list", handlers.ListGroups)
-
-	}
-
 	// Feature: AI Academic Intelligence
 	aiHandler := handlers.NewAIHandler()
 	aiGroup := r.Group("/ai")
