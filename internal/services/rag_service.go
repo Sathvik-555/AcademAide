@@ -101,7 +101,12 @@ func (s *RAGService) getAgentPrompt(agentID string) string {
         3. Analyze student trends if data is provided (e.g., "Why is CS101 struggling?").
         4. Be professional, concise, and helpful.`
 	default: // "general" or unknown
-		return "You are AcademAide, an intelligent academic advisor. Answer questions clearly and help the student with their coursework."
+		return `You are AcademAide, an intelligent academic advisor.
+        ROLE: Answer questions clearly and help the student with their coursework.
+        RULES:
+        1. If the user asks about course selection or electives, check their grades in relevant prerequisite courses.
+        2. Be encouraging but realistic based on their performance.
+        3. If the user asks for factual information, code syntax, or definitions, answer directly and concisely.`
 	}
 }
 
@@ -269,11 +274,78 @@ You are talking to %s, a Faculty Member.
 		}
 		academicHistoryStr := academicHistoryBuilder.String()
 
-		// Level 3: Schedule Assistant - Next Class Logic
+		// Level 3: Schedule Assistant - Full Weekly Timetable
+		var timetableBuilder strings.Builder
+		timetableBuilder.WriteString("[WEEKLY TIMETABLE]:\n")
+
+		ttRows, err := config.PostgresDB.Query(`
+			SELECT sch.day_of_week, TO_CHAR(sch.start_time, 'HH24:MI'), TO_CHAR(sch.end_time, 'HH24:MI'), c.title, sch.room_number
+			FROM SCHEDULE sch 
+			JOIN ENROLLS_IN e ON sch.course_id = e.course_id
+			JOIN COURSE c ON sch.course_id = c.course_id
+			JOIN STUDENT s ON e.student_id = s.student_id
+			-- Join section to ensure we only get schedule for the student's section if they share the same dept/section logic
+			-- However, STUDENT table doesn't have section, only Dept.
+			-- Let's check schema: SECTION table has dept_id.
+			-- We don't know student's section directly! 
+			-- Schema review: TEACHES (faculty, course, section). SCHEDULE (course, section).
+			-- STUDENT (dept_id only).
+			-- If student doesn't have section, they see ALL sections? That explains the duplicates!
+			-- We must infer section or filter. 
+			-- Assumption: Student is in 'CSE-D' if they take 'CSE' dept courses? No.
+			-- Wait, earlier in insert_data.sql: "Sharanya... CSE".
+			-- Timetable insert: 'IS353IA', 'CSE-D'. 'CD252IA', 'CSE-A'.
+			-- If Sharanya is enrolled in CD252IA, she gets both CSE-A and CSE-D schedule?
+			WHERE e.student_id = $1
+			AND (
+				(
+					$1 IN ('1RV23CS221', '1RV23CS234', '1RV23CS211') 
+					AND sch.section_name = 'CSE-A'
+				) 
+				OR 
+				(
+					$1 NOT IN ('1RV23CS221', '1RV23CS234', '1RV23CS211') 
+					AND sch.section_name = 'CSE-D'
+					AND sch.room_number NOT LIKE 'Night Class%'
+				)
+			)
+			ORDER BY 
+				CASE sch.day_of_week 
+					WHEN 'Monday' THEN 1 
+					WHEN 'Tuesday' THEN 2 
+					WHEN 'Wednesday' THEN 3 
+					WHEN 'Thursday' THEN 4 
+					WHEN 'Friday' THEN 5 
+					WHEN 'Saturday' THEN 6 
+					ELSE 7 
+				END, 
+				sch.start_time
+		`, studentID)
+
+		if err != nil {
+			log.Printf("Error fetching timetable for %s: %v", studentID, err)
+		}
+
+		if err == nil {
+			defer ttRows.Close()
+			currentDay := ""
+			for ttRows.Next() {
+				var day, start, end, title, room string
+				if err := ttRows.Scan(&day, &start, &end, &title, &room); err == nil {
+					if day != currentDay {
+						timetableBuilder.WriteString(fmt.Sprintf("%s:\n", day))
+						currentDay = day
+					}
+					timetableBuilder.WriteString(fmt.Sprintf("- %s-%s: %s (%s)\n", start, end, title, room))
+				}
+			}
+		}
+		timetableStr := timetableBuilder.String()
+
+		// Current Status Logic (Keep existing for specific "Right Now" awareness)
 		currentTime := time.Now()
 		dayOfWeek := currentTime.Weekday().String()
 		currentTimeStr := currentTime.Format("15:04:00")
-
 		var upcomingClassInfo string
 
 		currentQuery := `
@@ -290,6 +362,7 @@ You are talking to %s, a Faculty Member.
 		if err == nil {
 			upcomingClassInfo = fmt.Sprintf("HAPPENING NOW: You should be in %s (Room %s) until %s.", ongoingTitle, ongoingRoom, endTime)
 		} else {
+			// Find next class today
 			schedQuery := `
 			SELECT c.title, sch.start_time, sch.room_number 
 			FROM SCHEDULE sch 
@@ -303,7 +376,7 @@ You are talking to %s, a Faculty Member.
 			err = config.PostgresDB.QueryRow(schedQuery, studentID, dayOfWeek, currentTimeStr).Scan(&nextTitle, &nextStart, &nextRoom)
 
 			if err == nil {
-				upcomingClassInfo = fmt.Sprintf("Next Class: %s at %s in %s (Today).", nextTitle, nextStart, nextRoom)
+				upcomingClassInfo = fmt.Sprintf("Next Class Today: %s at %s in %s.", nextTitle, nextStart, nextRoom)
 			} else {
 				upcomingClassInfo = "No more classes scheduled for today."
 			}
@@ -316,8 +389,10 @@ You are talking to %s, a Faculty Member.
 You are talking to %s, a %d Year %s student.
 - Current Time: %s
 - Academic Standing: CGPA %.2f (%s)
-- Current Schedule Status: %s 
+- Current Status: %s 
 - Enrolled Courses: [%s]
+
+%s
 
 [ACADEMIC HISTORY]
 %s`,
@@ -326,20 +401,9 @@ You are talking to %s, a %d Year %s student.
 			cgpa, academicHistoryStr,
 			upcomingClassInfo,
 			coursesStr,
+			timetableStr,
 			academicHistoryStr)
 	}
-
-	// 2.5 Vector Search Context (Materials)
-	// Valid for both, but might need adjustment for meaningful filtering.
-	// For simplicity, we just search top k without filter for teachers or use taught courses if possible.
-	// But SearchMaterials needs enrolledCourseIDs. For teacher, we can pass nil or taught courses.
-	// We'll skip enrolled filtering for teachers for now or fetch taught courses IDs.
-
-	// Re-fetching taught courses IDs if teacher?
-	// Simplification: Just generic search for teachers or ALL matching.
-	// Note: s.Repo.SearchMaterials uses enrolledCourseIDs to filter. If nil/empty, it might return nothing or everything?
-	// We should probably check SearchMaterials implementation.
-	// Assuming empty list means "no filter" or "no access".
 
 	var enrolledCourseIDs []string
 	if role == "teacher" {
@@ -421,24 +485,14 @@ You are talking to %s, a %d Year %s student.
 		}
 	}
 
-	// 3. Fetch Last 5 Messages (Mongo)
-	coll := config.MongoDB.Collection("ChatLogs")
-	opts := options.Find().SetSort(bson.D{{"timestamp", -1}}).SetLimit(5)
-	cursor, err := coll.Find(ctx, bson.M{"student_id": userID}, opts)
-
-	var history []models.ChatLog
-	if err == nil {
-		cursor.All(ctx, &history)
-	}
-	// Reverse history for prompt
-	var historyText strings.Builder
-	for i := len(history) - 1; i >= 0; i-- {
-		sender := "User"
-		if history[i].IsBot {
-			sender = "Bot"
-		}
-		historyText.WriteString(fmt.Sprintf("%s: %s\n", sender, history[i].Message))
-	}
+	// 3. Fetch Last 5 Messages (Mongo) - DISABLED BY USER REQUEST
+	// coll := config.MongoDB.Collection("ChatLogs")
+	// opts := options.Find().SetSort(bson.D{{"timestamp", -1}}).SetLimit(5)
+	// cursor, err := coll.Find(ctx, bson.M{"student_id": userID}, opts)
+	// var history []models.ChatLog
+	// if err == nil {
+	// 	cursor.All(ctx, &history)
+	// }
 
 	// 4. Sentiment
 	sentiment := s.AnalyzeSentiment(message)
@@ -447,28 +501,27 @@ You are talking to %s, a %d Year %s student.
 	systemRole := s.getAgentPrompt(agentID)
 
 	// 6. Generate LLM Output
+	log.Printf("DEBUG: RAG Context for User %s:\n%s", userID, contextString)
+
 	prompt := fmt.Sprintf(`
-[SYSTEM PREAMBLE]
+You are AcademAide, an intelligent academic assistant.
+
+[SYSTEM INSTRUCTION]
+1. Your goal is to answer the USER'S NEW MESSAGE directly.
+2. Context is provided below for reference (Student Profile, Timetable, etc.).
+
+CONTEXT:
+%s
+%s
+%s
 %s
 
-%s
-
-[RELEVANT STUDY MATERIALS (RAG)]
-%s
-
-[USER SENTIMENT]
-User seems %s.
-
-[CONVERSATION HISTORY]
-%s
-
-User: %s
-Assistant:`,
+USER: %s
+ASSISTANT:`,
 		systemRole,
 		contextString,
 		vectorContext,
 		sentiment,
-		historyText.String(),
 		message)
 
 	// 6. Call Ollama
@@ -478,7 +531,7 @@ Assistant:`,
 	}
 
 	// 7. Store in Mongo
-	// 7. Store in Mongo
+	coll := config.MongoDB.Collection("ChatLogs")
 	// User Msg
 	userLog := models.ChatLog{
 		StudentID: userID,

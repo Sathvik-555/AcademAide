@@ -343,3 +343,50 @@ func GetStudentCourses(c *gin.Context) {
 
 	c.JSON(http.StatusOK, courses)
 }
+
+func GetTeachers(c *gin.Context) {
+	rawID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	studentID := rawID.(string)
+
+	// Fetch teachers for courses the student is enrolled in
+	query := `
+		SELECT DISTINCT f.f_first_name, f.f_last_name, f.f_email, c.title, c.course_id
+		FROM TEACHES t
+		JOIN FACULTY f ON t.faculty_id = f.faculty_id
+		JOIN COURSE c ON t.course_id = c.course_id
+		JOIN ENROLLS_IN e ON t.course_id = e.course_id
+		WHERE e.student_id = $1 AND e.status = 'Enrolled'
+		ORDER BY c.title
+	`
+
+	rows, err := config.PostgresDB.Query(query, studentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type TeacherInfo struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Course   string `json:"course"`
+		CourseID string `json:"course_id"`
+	}
+
+	var teachers []TeacherInfo
+	for rows.Next() {
+		var t TeacherInfo
+		var fFirst, fLast string
+		if err := rows.Scan(&fFirst, &fLast, &t.Email, &t.Course, &t.CourseID); err != nil {
+			continue
+		}
+		t.Name = fFirst + " " + fLast
+		teachers = append(teachers, t)
+	}
+
+	c.JSON(http.StatusOK, teachers)
+}

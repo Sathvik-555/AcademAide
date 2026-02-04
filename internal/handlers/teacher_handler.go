@@ -236,3 +236,62 @@ func (h *TeacherHandler) GetAlerts(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"alerts": alerts})
 }
+
+// GetProfile godoc
+// @Summary      Get Faculty Profile
+// @Description  Returns profile information for the logged-in faculty
+// @Tags         Teacher
+// @Router       /teacher/profile [get]
+func (h *TeacherHandler) GetProfile(c *gin.Context) {
+	facultyID := c.GetString("user_id")
+
+	var f struct {
+		FacultyID string `json:"faculty_id"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Email     string `json:"email"`
+		PhoneNo   string `json:"phone_no"`
+	}
+
+	err := config.PostgresDB.QueryRow(`
+		SELECT faculty_id, f_first_name, f_last_name, f_email, f_phone_no
+		FROM FACULTY WHERE faculty_id=$1
+	`, facultyID).Scan(&f.FacultyID, &f.FirstName, &f.LastName, &f.Email, &f.PhoneNo)
+
+	if err == sql.ErrNoRows {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Faculty not found"})
+		return
+	} else if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB Error"})
+		return
+	}
+
+	// Get Affiliated Departments
+	rows, err := config.PostgresDB.Query(`
+		SELECT DISTINCT d.dept_name
+		FROM TEACHES t
+		JOIN COURSE c ON t.course_id = c.course_id
+		JOIN DEPARTMENT d ON c.dept_id = d.dept_id
+		WHERE t.faculty_id=$1
+	`, facultyID)
+
+	var departments []string
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var dName string
+			if err := rows.Scan(&dName); err == nil {
+				departments = append(departments, dName)
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"faculty_id":  f.FacultyID,
+		"first_name":  f.FirstName,
+		"last_name":   f.LastName,
+		"email":       f.Email,
+		"phone_no":    f.PhoneNo,
+		"departments": departments,
+	})
+}

@@ -45,15 +45,6 @@ type WhatIfRequest struct {
 	MissedClasses int    `json:"missed_classes"`
 }
 
-// CalculateWhatIf godoc
-// @Summary      Simulate What-If Scenario
-// @Description  Projects attendance based on missed classes
-// @Tags         AI
-// @Accept       json
-// @Produce      json
-// @Param        request body WhatIfRequest true "Scenario"
-// @Success      200 {object} services.WhatIfScenario
-// @Router       /ai/what-if [post]
 func (h *AIHandler) CalculateWhatIf(c *gin.Context) {
 	var req WhatIfRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

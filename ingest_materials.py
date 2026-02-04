@@ -92,7 +92,8 @@ def process_course_materials():
     # Ensure DB is ready
     try:
         setup_database()
-    except:
+    except Exception as e:
+        print(f"CRITICAL ERROR in process_course_materials: {e}")
         return # Exit if setup failed
 
     print(f"🚀 Starting Ingestion (Model: {MODEL_NAME})")
@@ -149,7 +150,7 @@ def process_course_materials():
                 
                 print(f"      -> Generated {len(chunks)} chunks. Inserting...")
 
-                    for i, chunk in enumerate(chunks):
+                for i, chunk in enumerate(chunks):
                     content = chunk.page_content.replace('\x00', '')
                     # Generate embedding for single chunk
                     vector = embeddings.embed_query(content)

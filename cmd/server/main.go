@@ -36,6 +36,7 @@ func main() {
 		studentGroup.GET("/resources", handlers.GetStudentResources)
 		studentGroup.GET("/announcements", handlers.GetAnnouncements)
 		studentGroup.GET("/courses", handlers.GetStudentCourses)
+		studentGroup.GET("/teachers", handlers.GetTeachers)
 	}
 
 	chatGroup := r.Group("/chat")
@@ -76,6 +77,7 @@ func main() {
 		teacherGroup.GET("/students", teacherHandler.GetEnrolledStudents)
 		teacherGroup.GET("/student-details", teacherHandler.GetStudentDetails)
 		teacherGroup.POST("/announce", teacherHandler.PostAnnouncement)
+		teacherGroup.GET("/profile", teacherHandler.GetProfile)
 	}
 
 	// Start Server

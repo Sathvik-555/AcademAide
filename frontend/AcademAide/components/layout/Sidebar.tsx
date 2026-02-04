@@ -66,6 +66,11 @@ export function Sidebar() {
                 href: "/profile",
                 icon: Users,
             },
+            {
+                title: "Teachers",
+                href: "/teachers",
+                icon: Users, // Using Users temporarily, will update if needed
+            },
         ] : []),
         // Add teacher specific items if needed, for now just basic nav
         ...(role === "teacher" ? [
@@ -78,6 +83,11 @@ export function Sidebar() {
                 title: "Students",
                 href: "/teacher/students",
                 icon: Users,
+            },
+            {
+                title: "Profile",
+                href: "/teacher-profile",
+                icon: Users, // Or another icon like 'User' or 'Settings' if imported, reusing Users for now as mostly appropriate
             },
         ] : [])
     ]

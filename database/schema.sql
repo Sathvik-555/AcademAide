@@ -1,20 +1,5 @@
--- AcademAide PostgreSQL Schema
--- Enable pgvector extension for embeddings
+
 CREATE EXTENSION IF NOT EXISTS vector;
-
--- 3NF Justification:
--- 1NF: All columns are atomic. No repeating groups.
--- 2NF: No partial dependencies. All non-key attributes depend on the full primary key.
--- 3NF: No transitive dependencies. Non-key attributes depend ONLY on the primary key, not on other non-key attributes.
---      Example: 'dept_name' is in DEPARTMENT, not repeated in STUDENT or COURSE.
-
--- Enable UUID extension if needed, though schema uses standard types (assuming serial or text/int)
--- Using SERIAL/INTEGER for IDs for simplicity as per common academic projects, or VARCHAR for specific ID formats.
--- Based on typical academic IDs, VARCHAR is safer for 'student_id' (e.g., 'S2023001').
-
--- Corrected Drop Order to handle FK dependencies
--- Child tables must be dropped before Parents
-
 
 DROP TABLE IF EXISTS SCHEDULE;
 DROP TABLE IF EXISTS ENROLLS_IN;
@@ -22,12 +7,12 @@ DROP TABLE IF EXISTS RESOURCE;
 DROP TABLE IF EXISTS SYLLABUS_UNIT;
 DROP TABLE IF EXISTS TEACHES;
 
--- Dependents of Department must go first
+
 DROP TABLE IF EXISTS STUDENT;
 DROP TABLE IF EXISTS COURSE;
 DROP TABLE IF EXISTS SECTION;
 
--- DEPARTMENT depends on FACULTY (via hod_id), so drop Dept first OR use CASCADE
+
 DROP TABLE IF EXISTS DEPARTMENT CASCADE; 
 DROP TABLE IF EXISTS FACULTY CASCADE;
 
@@ -35,7 +20,7 @@ DROP TABLE IF EXISTS FACULTY CASCADE;
 CREATE TABLE DEPARTMENT (
     dept_id VARCHAR(10) PRIMARY KEY,
     dept_name VARCHAR(100) NOT NULL,
-    hod_id VARCHAR(20) -- FK added later to avoid circular dependency or defer
+    hod_id VARCHAR(20) 
 );
 
 -- 2. FACULTY
@@ -47,12 +32,11 @@ CREATE TABLE FACULTY (
     f_phone_no VARCHAR(15)
 );
 
--- Add Circular FK for Department HOD
 ALTER TABLE DEPARTMENT
 ADD CONSTRAINT fk_dept_hod
 FOREIGN KEY (hod_id) REFERENCES FACULTY(faculty_id);
 
--- 3. STUDENT
+
 CREATE TABLE STUDENT (
     student_id VARCHAR(20) PRIMARY KEY,
     s_first_name VARCHAR(50) NOT NULL,
@@ -67,7 +51,7 @@ CREATE TABLE STUDENT (
 
 -- 4. SECTION
 CREATE TABLE SECTION (
-    section_name VARCHAR(10) PRIMARY KEY, -- e.g., 'A', 'B', 'CS-A'
+    section_name VARCHAR(10) PRIMARY KEY, 
     dept_id VARCHAR(10) NOT NULL,
     CONSTRAINT fk_section_dept FOREIGN KEY (dept_id) REFERENCES DEPARTMENT(dept_id)
 );
@@ -108,7 +92,7 @@ CREATE TABLE RESOURCE (
     resource_id SERIAL PRIMARY KEY,
     title VARCHAR(100) NOT NULL,
     description TEXT,
-    type VARCHAR(50), -- e.g., 'PDF', 'Video', 'Slide'
+    type VARCHAR(50), 
     course_id VARCHAR(10) NOT NULL,
     CONSTRAINT fk_resource_course FOREIGN KEY (course_id) REFERENCES COURSE(course_id)
 );
@@ -117,8 +101,8 @@ CREATE TABLE RESOURCE (
 CREATE TABLE ENROLLS_IN (
     student_id VARCHAR(20),
     course_id VARCHAR(10),
-    grade VARCHAR(2), -- e.g., 'A', 'B+'
-    status VARCHAR(20) DEFAULT 'Enrolled', -- 'Completed', 'Dropped'
+    grade VARCHAR(2), 
+    status VARCHAR(20) DEFAULT 'Enrolled', 
     backlog BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (student_id, course_id),
     CONSTRAINT fk_enrolls_student FOREIGN KEY (student_id) REFERENCES STUDENT(student_id),
@@ -140,11 +124,6 @@ CREATE TABLE SCHEDULE (
 
 
 
--- ==========================================
--- SEED DATA
--- ==========================================
-
--- Insert Faculty first (needed for Dept HOD)
 INSERT INTO FACULTY (faculty_id, f_first_name, f_last_name, f_email, f_phone_no) VALUES
 ('F001', 'Alice', 'Smith', 'alice.smith@univ.edu', '555-0101'),
 ('F002', 'Bob', 'Jones', 'bob.jones@univ.edu', '555-0102');
@@ -190,7 +169,7 @@ INSERT INTO RESOURCE (title, description, type, course_id) VALUES
 -- Insert Enrollment
 INSERT INTO ENROLLS_IN (student_id, course_id, grade, status) VALUES
 ('S1001', 'CS101', 'A', 'Completed'),
-('S1001', 'CS102', NULL, 'Enrolled'), -- Ongoing
+('S1001', 'CS102', NULL, 'Enrolled'),
 ('S1002', 'CS101', NULL, 'Enrolled');
 
 -- Insert Schedule
